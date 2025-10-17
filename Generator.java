@@ -34,6 +34,8 @@ class Generator {
     private ArrayList<Boolean> written;
     private int offset;
 
+    private final int maxLength = 42;
+
     public Generator(String url) {
         this.url = url;
         written = new ArrayList<>();
@@ -41,7 +43,7 @@ class Generator {
 
     public void create() {
         length = url.length();
-        if (length > 106) {
+        if (length > maxLength) {
             smallEnough = false;
             return;
         }
@@ -347,7 +349,7 @@ class Generator {
     @Override
     public String toString() {
         if (!smallEnough) {
-            return "That URL is too long. This generator only supports URLs up to 106 characters long";
+            return String.format("That URL is too long. This generator only supports URLs up to %d characters long", maxLength);
         }
         return printArray(codeArray);
     }
