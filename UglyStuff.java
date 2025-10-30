@@ -172,25 +172,6 @@ public class UglyStuff {
         return -1;
     }
 
-    public static int getLength(int version) {
-        return switch (version) {
-            case (1) ->
-                10; // TODO Figure out the problem
-            case (2) ->
-                16;
-            case (3) ->
-                26;
-            case (4) ->
-                36;
-            case (5) ->
-                48;
-            case (6) ->
-                64;
-            default ->
-                0;
-        };
-    }
-
     public static boolean[][] drawFormatString(boolean[][] code, int mask) {
         int size = code.length - 1;
         boolean[] formatString = bitStringToBoolArray(getFormatString(mask));
@@ -223,6 +204,12 @@ public class UglyStuff {
 
     public static boolean[][][] initializeBlocks(int version) {
         return switch (version) {
+            case (1) ->
+                new boolean[1][16][8];
+            case (2) ->
+                new boolean[1][28][8];
+            case (3) ->
+                new boolean[1][44][8];
             case (4) ->
                 new boolean[2][32][8];
             case (5) ->
@@ -236,6 +223,12 @@ public class UglyStuff {
 
     public static int[][] initializeRemainderBlocks(int version) {
         return switch (version) {
+            case (1) ->
+                new int[1][10];
+            case (2) ->
+                new int[1][16];
+            case (3) ->
+                new int[1][26];
             case (4) ->
                 new int[2][18];
             case (5) ->
@@ -248,16 +241,8 @@ public class UglyStuff {
     }
 
     public static int totBlockWords(int version) {
-        return switch (version) {
-            case (4) ->
-                64;
-            case (5) ->
-                86;
-            case (6) ->
-                108;
-            default ->
-                0;
-        };
+        boolean[][][] hold = initializeBlocks(version);
+        return hold.length * hold[0].length;
     }
 
     private static String getFormatString(int mask) throws IndexOutOfBoundsException {

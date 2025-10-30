@@ -68,30 +68,13 @@ class Generator {
                 }
             }
         }
-        if (version < 4) {
-            writeNextByte(new boolean[]{false, false, true, false}); // bytes but the code works backwards
-            urlLength();
-            writeUrlToArray();
-            writeUrl();
-            pad();
-            int[] remainder = UglyStuff.longDivision(written, version);
-            writeErrorCorrection(remainder);
-            easyMask();
+        urlBytes = new boolean[UglyStuff.totBlockWords(version)][8];
+        writeToBlocks();
+        interleave(blocks);
+        writeUrl();
+        errorCorrection();
+        easyMask();
 
-        } else { // something in here isn't working
-            urlBytes = new boolean[UglyStuff.totBlockWords(version)][8];
-            writeToBlocks();
-            interleave(blocks);
-            writeUrl();
-            highVersionErrorCorrection();
-            easyMask();
-
-        }
-
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
     }
 
     private void alignmentSquares() {
@@ -100,28 +83,6 @@ class Generator {
         if (version > 1) {
             codeArray = UglyStuff.fourthSquare(codeArray, version);
             marked = UglyStuff.markedFourthSquare(marked, version);
-        }
-    }
-
-    private void pad() {
-        writeNextByte(new boolean[]{false, false, false, false});
-        boolean parity = true;
-        while ((int) Math.pow(size, 2) - (8 * (UglyStuff.getLength(version) + 1)) - 4 > numMarked) {
-            writeNextByte(intToBoolArray(parity ? 236 : 17));
-            parity = !parity;
-        }
-        // pad with alternating: 11101100 (0xEC) 00010001 (0x11)
-    }
-
-    private void urlLength() {
-        boolean[] urlLengthBytes = intToBoolArray(length);
-        writeNextByte(urlLengthBytes);
-    }
-
-    private void writeUrlToArray() {
-        for (int c = 0; c < length; c++) {
-            int character = url.charAt(c);
-            urlBytes[c] = intToBoolArray(character);
         }
     }
 
@@ -350,24 +311,11 @@ class Generator {
         }
     }
 
-    private boolean empty(boolean[] input) {
-        for (boolean b : input) {
-            if (b) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private void interleave(boolean[][][] toInterleave) {
         int tracer = 0;
 
         for (int i = 0; i < toInterleave[0].length; i++) { // same number of loops as codewords per block
-            for (boolean[][] block : toInterleave) {
-                // loop through each block
-                /*if (empty(block[i])) {
-                    continue;
-                }*/
+            for (boolean[][] block : toInterleave) { // loop through each block
                 urlBytes[tracer] = block[i];
                 tracer++;
             }
@@ -403,7 +351,7 @@ class Generator {
         }
     }
 
-    private void highVersionErrorCorrection() {
+    private void errorCorrection() {
         int[][] remainders = UglyStuff.initializeRemainderBlocks(version);
         for (int i = 0; i < blocks.length; i++) {
             ArrayList<Boolean> blockStream = new ArrayList<>();
