@@ -221,6 +221,45 @@ public class UglyStuff {
         return ret;
     }
 
+    public static boolean[][][] initializeBlocks(int version) {
+        return switch (version) {
+            case (4) ->
+                new boolean[2][32][8];
+            case (5) ->
+                new boolean[2][43][8];
+            case (6) ->
+                new boolean[4][27][8];
+            default ->
+                null;
+        };
+    }
+
+    public static int[][] initializeRemainderBlocks(int version) {
+        return switch (version) {
+            case (4) ->
+                new int[2][18];
+            case (5) ->
+                new int[2][24];
+            case (6) ->
+                new int[4][16];
+            default ->
+                null;
+        };
+    }
+
+    public static int totBlockWords(int version) {
+        return switch (version) {
+            case (4) ->
+                64;
+            case (5) ->
+                86;
+            case (6) ->
+                108;
+            default ->
+                0;
+        };
+    }
+
     private static String getFormatString(int mask) throws IndexOutOfBoundsException {
         switch (mask) {
             case (0) -> {
@@ -261,7 +300,11 @@ public class UglyStuff {
             case (3) ->
                 new int[]{0, 173, 125, 158, 2, 103, 182, 118, 17, 145, 201, 111, 28, 165, 53, 161, 21, 245, 142, 13, 102, 48, 227, 153, 145, 218, 70};
             case (4) ->
-                new int[]{0, 200, 183, 98, 16, 172, 31, 246, 234, 60, 152, 115, 0, 167, 152, 113, 248, 238, 107, 18, 63, 218, 37, 87, 210, 105, 177, 120, 74, 121, 196, 117, 251, 113, 233, 30, 120};
+                new int[]{0, 215, 234, 158, 94, 184, 97, 118, 170, 79, 187, 152, 148, 252, 179, 5, 98, 96, 153};
+            case (5) ->
+                new int[]{0, 229, 121, 135, 48, 211, 117, 251, 126, 159, 180, 169, 152, 192, 226, 228, 218, 111, 0, 117, 232, 87, 96, 227, 21};
+            case (6) ->
+                new int[]{0, 120, 104, 107, 109, 102, 161, 76, 3, 91, 191, 147, 169, 182, 194, 225, 120};
             default ->
                 new int[]{};
         };
@@ -291,7 +334,6 @@ public class UglyStuff {
             dividend[tracer] = count;
             tracer++;
         }
-
         int term = 0; // tracks which term we're looking at
         while (goodNumbers(dividend) > divisor.length) {
             if (dividend[term] == 0) {
@@ -336,7 +378,7 @@ public class UglyStuff {
             case (6) ->
                 (((row * col) % 2) + ((row * col) % 3)) % 2 == 0;
             case (7) ->
-                (((row + col) % 2) + ((row * col)) % 3) % 2 == 0;
+                (((row + col) % 2) + (row * col) % 3) % 2 == 0;
             default ->
                 false;
         };
@@ -351,7 +393,7 @@ public class UglyStuff {
      *                      (a**3)*(x**8) + (a**91)*(x**7) + (a**191)*(x**6) + (a**147×5) + (a**169)*(x**4) + 
      *                          (a**182)*(x**3) + (a**194)*(x**2) + (a**225)*(x) + (a**120)
      * 3: 26
-     * 4: 36
+     * 4: {0, 200, 183, 98, 16, 172, 31, 246, 234, 60, 152, 115, 0, 167, 152, 113, 248, 238, 107, 18, 63, 218, 37, 87, 210, 105, 177, 120, 74, 121, 196, 117, 251, 113, 233, 30, 120};
      * 5: 48
      * 6: 64
      */

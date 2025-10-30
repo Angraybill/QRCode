@@ -4,9 +4,7 @@
  * QR Code Generator
  * 
  * Sources:
- * https://www.thonky.com/qr-code-tutorial/format-version-tables
- * https://www.thonky.com/qr-code-tutorial/log-antilog-table
- * https://www.thonky.com/qr-code-tutorial/show-division-steps?
+ * https://www.thonky.com/qr-code-tutorial
  * https://www.youtube.com/watch?v=w5ebcowAJD8
  * https://docs.google.com/spreadsheets/d/1kjJSg-Fgdyz4vBqU8iEvL2JYPhMWcL73otAI9s4gj-k/edit?gid=1916601463#gid=1916601463
  * https://www.geeksforgeeks.org/how-to-print-colored-text-in-java-console/
@@ -14,8 +12,7 @@
  * https://github.com/yansikeim/QR-Code/blob/master/ISO%20IEC%2018004%202015%20Standard.pdf
  */
 
-import java.util.ArrayList;
-import java.util.Scanner;
+import java.util.*;
 
 class Generator {
 
@@ -31,24 +28,28 @@ class Generator {
     private int lastRow;
     private int lastCol;
     private boolean smallEnough;
-    private ArrayList<Boolean> written;
+    private final ArrayList<Boolean> written;
     private int offset;
+    private boolean[][][] blocks;
 
-    private final int maxLength = 42;
+    private static final int MAXLENGTH = 106;
 
     public Generator(String url) {
         this.url = url;
         written = new ArrayList<>();
+
     }
 
     public void create() {
+
         length = url.length();
-        if (length > maxLength) {
+        if (length > MAXLENGTH) {
             smallEnough = false;
             return;
         }
         smallEnough = true;
         version = UglyStuff.getVersion(length);
+        blocks = UglyStuff.initializeBlocks(version);
         urlBytes = new boolean[length][8];
         size = 17 + (4 * version);
         codeArray = new boolean[size][size]; // [y][x] starting in top left
@@ -56,11 +57,8 @@ class Generator {
         up = true;
         lastRow = size - 1;
         lastCol = size - 1;
-        numMarked = -4; // avoid double counting
+        numMarked = 0; // avoid double counting
         offset = 0; // avoid messing up the writing when you hit the vertial timing strip
-
-        writeNextByte(new boolean[]{false, false, true, false}); // bytes but the code works backwards
-
         // Start Drawing things onto the square
         alignmentSquares();
         for (int row = 0; row < size; row++) {
@@ -70,15 +68,26 @@ class Generator {
                 }
             }
         }
-        urlLength();
-        writeUrl();
-        //  System.out.println(this);
-        pad();
-        //  System.out.println(this);
-        errorCorrection(); // The problem is somewhere in here
-        //  System.out.println(this + "\n\n\n\n\n\n\n\n\n\n\n");
-        easyMask();
-        // formatString(2); // 2 is just what veritasium used because it's simple
+        if (version < 4) {
+            writeNextByte(new boolean[]{false, false, true, false}); // bytes but the code works backwards
+            urlLength();
+            writeUrlToArray();
+            writeUrl();
+            pad();
+            int[] remainder = UglyStuff.longDivision(written, version);
+            writeErrorCorrection(remainder);
+            easyMask();
+
+        } else { // something in here isn't working
+            urlBytes = new boolean[UglyStuff.totBlockWords(version)][8];
+            writeToBlocks();
+            interleave(blocks);
+            writeUrl();
+            highVersionErrorCorrection();
+            easyMask();
+
+        }
+
     }
 
     public void setUrl(String url) {
@@ -95,6 +104,7 @@ class Generator {
     }
 
     private void pad() {
+        writeNextByte(new boolean[]{false, false, false, false});
         boolean parity = true;
         while ((int) Math.pow(size, 2) - (8 * (UglyStuff.getLength(version) + 1)) - 4 > numMarked) {
             writeNextByte(intToBoolArray(parity ? 236 : 17));
@@ -108,15 +118,17 @@ class Generator {
         writeNextByte(urlLengthBytes);
     }
 
-    private void writeUrl() {
+    private void writeUrlToArray() {
         for (int c = 0; c < length; c++) {
             int character = url.charAt(c);
             urlBytes[c] = intToBoolArray(character);
         }
+    }
+
+    private void writeUrl() {
         for (boolean[] input : urlBytes) {
             writeNextByte(input);
         }
-        writeNextByte(new boolean[]{false, false, false, false});
     }
 
     private boolean[] intToBoolArray(int input) {
@@ -137,12 +149,6 @@ class Generator {
                 offset = 1;
                 lastCol--;
             }
-            // traverse
-            /*
-            if (lastCol == 0) {
-                lastRow += up ? -1 : 1;
-                continue;
-            }*/
             if (lastCol % 2 == 0 + offset) {
                 lastCol--;
             } else {
@@ -165,10 +171,7 @@ class Generator {
     }
 
     private void writeNextByte(boolean[] input) {
-        Scanner s = new Scanner(System.in);
         for (int i = input.length - 1; i >= 0; i--) {
-            // System.out.println(this);
-            // s.nextLine();
             getNextSquare();
             codeArray[lastRow][lastCol] = input[i];
             written.add(input[i]);
@@ -247,7 +250,6 @@ class Generator {
                 }
             }
         }
-        //www.instagram.com/angraybillSystem.out.println(printArray(test));
         return array;
     }
 
@@ -289,10 +291,103 @@ class Generator {
         // https://github.com/yansikeim/QR-Code/blob/master/ISO%20IEC%2018004%202015%20Standard.pdf
     }
 
-    ;
+    private boolean[] reverse(boolean[] toReverse) {
+        boolean[] ret = new boolean[toReverse.length];
+        for (int i = 0; i < toReverse.length; i++) {
+            ret[i] = toReverse[toReverse.length - i - 1];
+        }
+        return ret;
+    }
 
-    private void errorCorrection() {
-        int[] remainder = UglyStuff.longDivision(written, version);
+    private void writeToBlocks() {
+        ArrayList<Boolean> allbits = new ArrayList<>();
+        allbits.add(false);
+        allbits.add(true);
+        allbits.add(false);
+        allbits.add(false);
+        for (boolean b : reverse(intToBoolArray(length))) {
+            allbits.add(b);
+        }
+
+        for (int c = 0; c < length; c++) {
+            int character = url.charAt(c);
+            boolean[] charBoolArray = reverse(intToBoolArray(character));
+            for (boolean b : charBoolArray) {
+                allbits.add(b);
+            }
+        }
+        for (int i = 0; i < 4; i++) {
+            allbits.add(false);
+        }
+        boolean parity = true;
+        while (allbits.size() <= 8 * UglyStuff.totBlockWords(version)) {
+            for (boolean b : reverse(intToBoolArray(parity ? 236 : 17))) {
+                allbits.add(b);
+            }
+            parity = !parity;
+        }
+
+        boolean[] hold = new boolean[8];
+        int blockNum = 0;
+        int blockLength = blocks[0].length;
+        int numBlocksAdded = 0;
+        int holdIndex = 7;
+        while (!allbits.isEmpty()) {
+            if (holdIndex == -1) {
+                blocks[blockNum][numBlocksAdded] = hold;
+                numBlocksAdded++;
+                hold = new boolean[8];
+                holdIndex = 7;
+            }
+            hold[holdIndex] = allbits.remove(0);
+            holdIndex--;
+
+            if (numBlocksAdded == blockLength) {
+                blockNum++;
+                numBlocksAdded = 0;
+            }
+
+        }
+    }
+
+    private boolean empty(boolean[] input) {
+        for (boolean b : input) {
+            if (b) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void interleave(boolean[][][] toInterleave) {
+        int tracer = 0;
+
+        for (int i = 0; i < toInterleave[0].length; i++) { // same number of loops as codewords per block
+            for (boolean[][] block : toInterleave) {
+                // loop through each block
+                /*if (empty(block[i])) {
+                    continue;
+                }*/
+                urlBytes[tracer] = block[i];
+                tracer++;
+            }
+        }
+    }
+
+    private int[] interleaveRemainders(int[][] remainders) {
+        int[] ret = new int[remainders.length * remainders[0].length];
+        int tracer = 0;
+        for (int i = 0; i < remainders[0].length; i++) {
+            for (int[] remainder : remainders) {
+                ret[tracer] = remainder[i];
+                tracer++;
+            }
+        }
+        return ret;
+    }
+
+    private void writeErrorCorrection(int[] remainder) throws ArrayIndexOutOfBoundsException {
+        int a = 0;
         for (int i = 0; i < remainder.length; i++) {
             int input = remainder[i];
             if (input == -1) {
@@ -300,11 +395,28 @@ class Generator {
             }
             boolean[] booleanRepresentation = intToBoolArray(input);
             writeNextByte(booleanRepresentation);
+            a++;
         }
 
         while (numMarked < Math.pow(size, 2)) {
             writeNextByte(new boolean[]{false});
         }
+    }
+
+    private void highVersionErrorCorrection() {
+        int[][] remainders = UglyStuff.initializeRemainderBlocks(version);
+        for (int i = 0; i < blocks.length; i++) {
+            ArrayList<Boolean> blockStream = new ArrayList<>();
+            for (boolean[] word : blocks[i]) {
+                for (boolean b : reverse(word)) {
+                    blockStream.add(b);
+                }
+            }
+            remainders[i] = UglyStuff.longDivision(blockStream, version);
+        }
+        int[] mergedRemainders = interleaveRemainders(remainders);
+        writeErrorCorrection(mergedRemainders);
+
     }
 
     // \u001B[47m white 
@@ -349,17 +461,17 @@ class Generator {
     @Override
     public String toString() {
         if (!smallEnough) {
-            return String.format("That URL is too long. This generator only supports URLs up to %d characters long", maxLength);
+            return String.format("That URL is too long. This generator only supports URLs up to %d characters long", MAXLENGTH);
         }
         return printArray(codeArray);
     }
 
     public static void main(String[] args) {
-        Scanner s = new Scanner(System.in);
-        System.out.print("Enter your URL: ");
-        Generator g = new Generator(s.nextLine());
-        g.create();
-        System.out.println(g);
-        s.close();
+        try (Scanner s = new Scanner(System.in)) {
+            System.out.print("Enter your URL: ");
+            Generator g = new Generator(s.nextLine());
+            g.create();
+            System.out.println(g);
+        }
     }
 }
