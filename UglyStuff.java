@@ -11,19 +11,20 @@ public class UglyStuff {
         expToInt = new HashMap<>();
         intToExp = new HashMap<>();
 
-        try {
-            Scanner s = new Scanner(new File("gf255table.csv"));
+        try (Scanner s = new Scanner(new File("gf255table.csv"))) {
             while (s.hasNext()) {
                 String[] line = s.nextLine().split(",");
-                expToInt.put(Integer.parseInt(line[0]), Integer.parseInt(line[1]));
+                expToInt.put(Integer.valueOf(line[0]), Integer.valueOf(line[1]));
                 if (line.length > 2) {
-                    intToExp.put(Integer.parseInt(line[2]), Integer.parseInt(line[3]));
+                    intToExp.put(Integer.valueOf(line[2]), Integer.valueOf(line[3]));
                 }
             }
-            s.close();
         } catch (FileNotFoundException e) {
             System.out.println(e);
         }
+    }
+
+    private UglyStuff() {
     }
 
     /**
@@ -150,6 +151,14 @@ public class UglyStuff {
         return marked;
     }
 
+    /**
+     * Gives the version for a QR code with a URL of given length given byte
+     * mode and medium error correction
+     *
+     *
+     * @param length Length of your URL
+     * @return The number of the version of QR Code you should use
+     */
     public static int getVersion(int length) {
         if (length <= 14) {
             return 1;
@@ -172,6 +181,13 @@ public class UglyStuff {
         return -1;
     }
 
+    /**
+     * Draws the format string onto your QR Code array
+     *
+     * @param code Your QR Code array
+     * @param mask The number of mask used as specified by the ISO IEC 18004
+     * @return A Boolean array with the format string drawn on
+     */
     public static boolean[][] drawFormatString(boolean[][] code, int mask) {
         int size = code.length - 1;
         boolean[] formatString = bitStringToBoolArray(getFormatString(mask));
@@ -194,6 +210,12 @@ public class UglyStuff {
         return code;
     }
 
+    /**
+     * Turns a string of '1's and '0's into a boolean array
+     *
+     * @param input String of '1's and '0's
+     * @return boolean array representation
+     */
     private static boolean[] bitStringToBoolArray(String input) {
         boolean[] ret = new boolean[input.length()];
         for (int i = 0; i < input.length(); i++) {
@@ -202,6 +224,12 @@ public class UglyStuff {
         return ret;
     }
 
+    /**
+     * Returns block sizes for QR code messages
+     *
+     * @param version The version number of your QR Code
+     * @return An empty boolean array of the correct size for your message
+     */
     public static boolean[][][] initializeBlocks(int version) {
         return switch (version) {
             case (1) ->
@@ -217,10 +245,17 @@ public class UglyStuff {
             case (6) ->
                 new boolean[4][27][8];
             default ->
-                null;
+                new boolean[1][1][1];
         };
     }
 
+    /**
+     * Return block sizes for QR code error correction
+     *
+     * @param version The version number of your QR Code
+     * @return An empty boolean array of the correct size for your error
+     * corrections
+     */
     public static int[][] initializeRemainderBlocks(int version) {
         return switch (version) {
             case (1) ->
@@ -236,46 +271,69 @@ public class UglyStuff {
             case (6) ->
                 new int[4][16];
             default ->
-                null;
+                new int[1][1];
         };
     }
 
+    /**
+     * Return the total number of bytes that a given version can hold within the
+     * message
+     *
+     * @param version The version number of your QR Code
+     * @return The total number of bytes your message can hold
+     */
     public static int totBlockWords(int version) {
         boolean[][][] hold = initializeBlocks(version);
         return hold.length * hold[0].length;
     }
 
-    private static String getFormatString(int mask) throws IndexOutOfBoundsException {
-        switch (mask) {
-            case (0) -> {
-                return "101010000010010";
-            }
-            case (1) -> {
-                return "101000100100101";
-            }
-            case (2) -> {
-                return "101111001111100";
-            }
-            case (3) -> {
-                return "101101101001011";
-            }
-            case (4) -> {
-                return "100010111111001";
-            }
-            case (5) -> {
-                return "100000011001110";
-            }
-            case (6) -> {
-                return "100111110010111";
-            }
-            case (7) -> {
-                return "100101010100000";
-            }
+    /**
+     * Returns the format string for a given mask (Medium error correction)
+     *
+     * @param mask The number of your mask
+     * @return Your format string as a string of '1's and '0's
+     */
+    private static String getFormatString(int mask) {
+        return switch (mask) {
+            case (0) ->
+                "101010000010010";
+
+            case (1) ->
+                "101000100100101";
+
+            case (2) ->
+                "101111001111100";
+
+            case (3) ->
+                "101101101001011";
+
+            case (4) ->
+                "100010111111001";
+
+            case (5) ->
+                "100000011001110";
+
+            case (6) ->
+                "100111110010111";
+
+            case (7) ->
+                "100101010100000";
+
             default ->
-                throw new IndexOutOfBoundsException("Invalid Input: Must Give Mask between 0-7 inclusive");
-        }
+                "";
+
+        };
     }
 
+    /**
+     * Returns the divisors for error correction
+     *
+     * @param version The version number of your QR Code
+     * @return An array of integers used as coefficients for the long division
+     * to get the error correction byte. The resulting polynomial, given int[]
+     * r, and int a = r.length, is given by: r[0]*x^a + r[1]*x^a-1 + r[2]*x^a-2
+     * + ... + r[-1]
+     */
     private static int[] divisors(int version) {
         return switch (version) {
             case (1) ->
@@ -295,6 +353,13 @@ public class UglyStuff {
         };
     }
 
+    /**
+     * Used for long division, determines how many terms have been eliminated
+     * through the process of division.
+     *
+     * @param coefficients Array of coefficients to the dividend polynomial
+     * @return The number of terms in the array after any leading 0s
+     */
     private static int goodNumbers(int[] coefficients) {
         int ret = coefficients.length;
         for (int i : coefficients) {
@@ -307,18 +372,20 @@ public class UglyStuff {
         return ret;
     }
 
-    public static int[] longDivision(List<Boolean> input, int version) {
+    /**
+     * Returns an array of coefficients to a polynomial resulting from dividing
+     * a given array of polynomial coefficients by a polynomial as given by the
+     * ISO IEC 18004. Polynomials, given int[] r and int a = r.length, are given
+     * by r[0]*x^a + r[1]*x^(a-1) + r[2]*x^(a-2) + ... + r[-1]
+     *
+     * @param input Iterable list of booleans,
+     * @param version
+     * @return
+     */
+    public static int[] longDivision(int[] input, int version) {
         int[] divisor = divisors(version);
-        int[] dividend = new int[input.size() / 8 + divisor.length];
-        int tracer = 0;
-        while (!input.isEmpty()) {
-            int count = 0;
-            for (int i = 0; i < 8; i++) {
-                count += input.remove(0) ? (int) Math.pow(2, 7 - i) : 0;
-            }
-            dividend[tracer] = count;
-            tracer++;
-        }
+        int[] dividend = new int[input.length + divisor.length];
+        System.arraycopy(input, 0, dividend, 0, input.length);
         int term = 0; // tracks which term we're looking at
         while (goodNumbers(dividend) > divisor.length) {
             if (dividend[term] == 0) {
@@ -344,8 +411,15 @@ public class UglyStuff {
         return ret;
     }
 
-    // i -> row
-    // j -> col
+    /**
+     * Evaluates if a certain bit should be flipped given position and mask. The
+     * ISO IEC 18004 uses ordered pairs (i,j) representing (row, col)
+     *
+     * @param pattern The number of your mask pattern (0-7)
+     * @param row The row index of the given bit
+     * @param col The column index of the given bit
+     * @return true if the bit should be flipped, false if not
+     */
     public static boolean maskPatternEval(int pattern, int row, int col) {
         return switch (pattern) {
             case (0) ->
@@ -369,17 +443,4 @@ public class UglyStuff {
         };
     }
 
-
-    /*
-     * Number of error correction codewords needed by version: 
-     * 10 -- x**10 + (a**251)*(x**9) + (a**67)*(x**8) + (a**46)*(x**7) + (a**61)*(x**6) + 
-     *                  (a**118)*(x**5) + (a**70)*(x**4) + (a**64)*(x**3) + (a**94)*(x**2) + (a**32)x + a**45
-     * 16 -- x**16 + (a**120)*(x**15) + (a**104)*(x**14) + (a**107)*(x**13) + (a**109)*(x**12) + (a**102)*(x**11) + (a**161)*(x**10) + (a**76)*(x**9) +
-     *                      (a**3)*(x**8) + (a**91)*(x**7) + (a**191)*(x**6) + (a**147×5) + (a**169)*(x**4) + 
-     *                          (a**182)*(x**3) + (a**194)*(x**2) + (a**225)*(x) + (a**120)
-     * 3: 26
-     * 4: {0, 200, 183, 98, 16, 172, 31, 246, 234, 60, 152, 115, 0, 167, 152, 113, 248, 238, 107, 18, 63, 218, 37, 87, 210, 105, 177, 120, 74, 121, 196, 117, 251, 113, 233, 30, 120};
-     * 5: 48
-     * 6: 64
-     */
 }

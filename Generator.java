@@ -16,7 +16,7 @@ import java.util.*;
 
 class Generator {
 
-    private String url;
+    private final String url;
     private int length;
     private int size;
     private int version;
@@ -28,7 +28,6 @@ class Generator {
     private int lastRow;
     private int lastCol;
     private boolean smallEnough;
-    private final ArrayList<Boolean> written;
     private int offset;
     private boolean[][][] blocks;
 
@@ -36,10 +35,11 @@ class Generator {
 
     public Generator(String url) {
         this.url = url;
-        written = new ArrayList<>();
-
     }
 
+    /**
+     * Main function that does everything needed to create a QR Code
+     */
     public void create() {
 
         length = url.length();
@@ -73,10 +73,13 @@ class Generator {
         interleave(blocks);
         writeUrl();
         errorCorrection();
-        easyMask();
+        mask();
 
     }
 
+    /**
+     * Draws the alignment squares onto the code
+     */
     private void alignmentSquares() {
         codeArray = UglyStuff.alignment(codeArray);
         marked = UglyStuff.markedAlignment(marked);
@@ -86,12 +89,22 @@ class Generator {
         }
     }
 
+    /**
+     * Writes the URL message (including everything before and after) onto the
+     * code
+     */
     private void writeUrl() {
         for (boolean[] input : urlBytes) {
             writeNextByte(input);
         }
     }
 
+    /**
+     * Converts an integer into a boolean[] byte
+     *
+     * @param input Integer to convert
+     * @return Byte representation
+     */
     private boolean[] intToBoolArray(int input) {
         boolean[] ret = new boolean[8];
         for (int tracer = 7; tracer >= 0; tracer--) {
@@ -104,6 +117,24 @@ class Generator {
         return ret;
     }
 
+    /**
+     * Turns a byte (representated by a boolean array) into an integer
+     *
+     * @param input Byte to convert
+     * @return Integer representation
+     */
+    private int boolArrayToint(boolean[] input) {
+        int ret = 0;
+        for (int i = 0; i < 8; i++) {
+            ret += input[i] ? (int) Math.pow(2, i) : 0;
+        }
+        return ret;
+    }
+
+    /**
+     * Finds the next square to go to given current position, direction, bit,
+     * etc
+     */
     private void getNextSquare() {
         while (marked[lastRow][lastCol]) {
             if (lastCol == 6) {
@@ -131,32 +162,36 @@ class Generator {
         }
     }
 
+    /**
+     * Writes the next byte onto the code
+     *
+     * @param input Byte to write
+     */
     private void writeNextByte(boolean[] input) {
         for (int i = input.length - 1; i >= 0; i--) {
             getNextSquare();
             codeArray[lastRow][lastCol] = input[i];
-            written.add(input[i]);
             marked[lastRow][lastCol] = true;
             numMarked++;
         }
     }
 
-    public boolean[][] getArray() {
-        return codeArray;
-    }
-
-    public boolean[][] getMarked() {
-        return marked;
-    }
-
-    public String getUrl() {
-        return url;
-    }
-
+    /**
+     * Draws a format string onto the QR Code
+     *
+     * @param mask The number of the mask in use
+     *
+     */
     private void formatString(int mask) {
         codeArray = UglyStuff.drawFormatString(codeArray, mask);
     }
 
+    /**
+     * Calulates the score for a given mask as specified by the ISO IEC 18004
+     *
+     * @param code A QR Code to grade
+     * @return The score as given by the criteria in the handbook
+     */
     private int score(boolean[][] code) {
         int ret = 0;
 
@@ -165,39 +200,138 @@ class Generator {
         int countery = 1;
         for (int row = 0; row < size; row++) {
             for (int col = 1; col < size; col++) {
-                if (code[row][col] == code[row][col + 1]) {
+                if (col + 1 < size && code[row][col] == code[row][col + 1]) {
                     counterx++;
                 } else {
                     if (counterx >= 5) {
                         ret += counterx - 2;
-                        counterx = 1;
                     }
+                    counterx = 1;
                 }
-                if (code[col][row] == code[col][row + 1]) {
+                if (row + 1 < size && code[col][row] == code[col][row + 1]) {
                     countery++;
                 } else {
                     if (countery >= 5) {
                         ret += countery - 2;
-                        countery = 1;
                     }
+                    countery = 1;
                 }
             }
 
         }
         // Feature 2: 2x2 squares
-        for (int row = 1; row < size; row++) {
-            for (int col = 1; col < size; col++) {
+        for (int row = 0; row < size - 2; row++) {
+            for (int col = 0; col < size - 2; col++) {
                 if (code[row][col] == code[row + 1][col] && code[row][col] == code[row][col + 1] && code[row][col] == code[row + 1][col + 1]) {
                     ret += 3;
                 }
             }
         }
-        // feature 3: 1:1:3:1:1 followed/proceeded by 4 whites
+        // feature 3: 1:1:3:1:1 (d:l:d:l:d) followed/proceeded by 4 light
+        for (boolean[][] codeCheck : new boolean[][][]{code, rotate(code)}) {
+            boolean lightBefore;
+            int[] patternConsts = new int[]{1, 1, 3, 1, 1};
+            int patternIndex;
+            int constantMult = 1;
+            int consecutiveEqual;
+            for (int row = 1; row < size; row++) {
+                patternIndex = 0;
+                consecutiveEqual = 1;
+                lightBefore = false;
+                for (int col = 1; col < size; col++) {
+                    if (codeCheck[row][col] == codeCheck[row][col - 1]) {
+                        consecutiveEqual++;
+                    } else {
+                        if (!codeCheck[row][col] && patternIndex == 0) {
+                            constantMult = consecutiveEqual;
+                            patternIndex++;
+                            consecutiveEqual = 1;
+                            continue;
+                        }
+                        if (patternIndex != 0) {
+                            if (patternConsts[patternIndex] == constantMult * consecutiveEqual) {
+                                patternIndex++;
+                                if (patternIndex == 4) {
+                                    if (lightBefore || col + 4 < size && nextFourFalse(row, col, codeCheck)) {
+                                        ret += 40;
+                                    }
+                                    patternIndex = 0;
+                                }
+                            } else {
+                                if (!codeCheck[row][col]) {
+                                    constantMult = consecutiveEqual;
+                                    patternIndex = 1;
+                                    lightBefore = false;
+                                } else {
+                                    patternIndex = 0;
+                                    lightBefore = consecutiveEqual >= 4;
+                                }
+                            }
+                        }
+                        consecutiveEqual = 1;
+                    }
+                }
+            }
+        }
+
+        // feature 4: Ratio of light to dark squares
+        int dark = 0;
+        for (int row = 0; row < size; row++) {
+            for (int col = 0; col < size; col++) {
+                dark += code[row][col] ? 1 : 0;
+            }
+        }
+        double benchmark = (size * size) / 2.0;
+        double ratio = dark / benchmark;
+        ret += (int) (ratio - 1.0) * 10;
+
         return ret;
     }
 
+    /**
+     * Returns if the next four square are all light Must not give input such
+     * that four additional squares would go out of bounds
+     *
+     * @param row row index of the starting square
+     * @param col column index of the starting square
+     * @param code QR Code as a 2D boolean array
+     * @return true if the next four squares are light. false if not
+     */
+    private boolean nextFourFalse(int row, int col, boolean[][] code) {
+        for (int i = 1; i <= 4; i++) {
+            if (code[row][col + i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Rotates an array 90˚ Counter-Clockwise
+     *
+     * @param code
+     * @return
+     */
+    private boolean[][] rotate(boolean[][] code) {
+        boolean[][] ret = new boolean[code.length][code.length];
+        for (int i = 0; i < code.length; i++) {
+            for (int j = 0; j < code.length; j++) {
+                ret[i][j] = code[j][code.length - i - 1];
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * Draws a mask onto an array
+     *
+     * @param array Given boolean[][] representation of a QR Code
+     * @param pattern Mask number as given by the ISO IEC 18004
+     * @param untouched Array of squares not to touch (alignment patters, timing
+     * strips, etc)
+     * @return Array with the mask drawn on
+     */
     private boolean[][] maskArray(boolean[][] array, int pattern, boolean[][] untouched) {
-        boolean[][] test = new boolean[size][size];
         for (int row = 0; row < size; row++) {
             for (int col = 0; col < size; col++) {
                 if (untouched[row][col]) {
@@ -205,7 +339,6 @@ class Generator {
                 }
                 if (UglyStuff.maskPatternEval(pattern, row, col)) {
                     array[row][col] = !codeArray[row][col];
-                    test[row][col] = true;
                 } else {
                     array[row][col] = codeArray[row][col];
                 }
@@ -214,32 +347,30 @@ class Generator {
         return array;
     }
 
-    private void easyMask() {
-        boolean[][] untouched = new boolean[size][size];
-        untouched = UglyStuff.markedAlignment(untouched);
-        if (version > 1) {
-            untouched = UglyStuff.markedFourthSquare(untouched, version);
-        }
-        codeArray = maskArray(codeArray, 2, untouched);
-        formatString(2);
-    }
-
+    /**
+     * Calulates the mask with the lowest score, implements it onto the code,
+     * and adds the format string
+     */
     private void mask() {
         boolean[][] untouched = new boolean[size][size];
+        boolean[][] blankTestArray = new boolean[size][size];
         untouched = UglyStuff.markedAlignment(untouched);
+        blankTestArray = UglyStuff.alignment(blankTestArray);
         if (version > 1) {
             untouched = UglyStuff.markedFourthSquare(untouched, version);
+            blankTestArray = UglyStuff.fourthSquare(blankTestArray, version);
         }
-        int implementedMasks = 8;
-        int[] scores = new int[implementedMasks];
-        for (int pattern = 0; pattern < implementedMasks; pattern++) {
-            boolean[][] arrayForScoring = maskArray(new boolean[size][size], pattern, untouched);
+        int[] scores = new int[8];
+
+        for (int pattern = 0; pattern < 8; pattern++) {
+            boolean[][] arrayForScoring = maskArray(blankTestArray, pattern, untouched);
+            arrayForScoring = UglyStuff.drawFormatString(arrayForScoring, pattern);
             scores[pattern] = score(arrayForScoring);
         }
         int lowestPattern = 0;
         int lowestScore = Integer.MAX_VALUE;
 
-        for (int i = 0; i < implementedMasks; i++) {
+        for (int i = 0; i < 8; i++) {
             if (scores[i] < lowestScore) {
                 lowestScore = scores[i];
                 lowestPattern = i;
@@ -247,11 +378,14 @@ class Generator {
         }
         codeArray = maskArray(codeArray, lowestPattern, untouched);
         formatString(lowestPattern);
-        // TODO make this actually variable
-        // TODO: implement masks using the scoring system given here: Page 54
-        // https://github.com/yansikeim/QR-Code/blob/master/ISO%20IEC%2018004%202015%20Standard.pdf
     }
 
+    /**
+     * Reverses a boolean[]
+     *
+     * @param toReverse Input array
+     * @return Reversed array
+     */
     private boolean[] reverse(boolean[] toReverse) {
         boolean[] ret = new boolean[toReverse.length];
         for (int i = 0; i < toReverse.length; i++) {
@@ -260,6 +394,9 @@ class Generator {
         return ret;
     }
 
+    /**
+     * Writes the URL into blocks as specified by the version
+     */
     private void writeToBlocks() {
         ArrayList<Boolean> allbits = new ArrayList<>();
         allbits.add(false);
@@ -311,6 +448,11 @@ class Generator {
         }
     }
 
+    /**
+     * Interleaves bytes
+     *
+     * @param toInterleave Blocks of boolean[] representations of bytes
+     */
     private void interleave(boolean[][][] toInterleave) {
         int tracer = 0;
 
@@ -322,6 +464,13 @@ class Generator {
         }
     }
 
+    /**
+     * Interleaves the remainders one byte from each block after another
+     *
+     * @param remainders Coefficient remainders broken into blocks as
+     * specificied by the version
+     * @return Remainders interwoven into one stream of integers
+     */
     private int[] interleaveRemainders(int[][] remainders) {
         int[] ret = new int[remainders.length * remainders[0].length];
         int tracer = 0;
@@ -334,8 +483,13 @@ class Generator {
         return ret;
     }
 
-    private void writeErrorCorrection(int[] remainder) throws ArrayIndexOutOfBoundsException {
-        int a = 0;
+    /**
+     * Writes the error correction bits onto the Code
+     *
+     * @param remainder Integer coefficients of the remainder as given by the
+     * polynomial division
+     */
+    private void writeErrorCorrection(int[] remainder) {
         for (int i = 0; i < remainder.length; i++) {
             int input = remainder[i];
             if (input == -1) {
@@ -343,7 +497,6 @@ class Generator {
             }
             boolean[] booleanRepresentation = intToBoolArray(input);
             writeNextByte(booleanRepresentation);
-            a++;
         }
 
         while (numMarked < Math.pow(size, 2)) {
@@ -351,16 +504,17 @@ class Generator {
         }
     }
 
+    /**
+     * Adds calculates and writes the error correction bytes onto the code
+     */
     private void errorCorrection() {
         int[][] remainders = UglyStuff.initializeRemainderBlocks(version);
         for (int i = 0; i < blocks.length; i++) {
-            ArrayList<Boolean> blockStream = new ArrayList<>();
-            for (boolean[] word : blocks[i]) {
-                for (boolean b : reverse(word)) {
-                    blockStream.add(b);
-                }
+            int[] coefficients = new int[blocks[0].length];
+            for (int j = 0; j < coefficients.length; j++) {
+                coefficients[j] = boolArrayToint(blocks[i][j]);
             }
-            remainders[i] = UglyStuff.longDivision(blockStream, version);
+            remainders[i] = UglyStuff.longDivision(coefficients, version);
         }
         int[] mergedRemainders = interleaveRemainders(remainders);
         writeErrorCorrection(mergedRemainders);
@@ -372,7 +526,13 @@ class Generator {
     // \u001B[42m green
     // \u001B[43m yellow
     // \u001B[44m blue
-    public String printArray(boolean[][] toPrint) {
+    /**
+     * Turns a boolean[][] into a string that shows a QR code when printed
+     *
+     * @param toPrint Your boolean[][] representation of a Code
+     * @return String representation of a QR Code
+     */
+    private String printArray(boolean[][] toPrint) {
         final String on = "\u001B[47m";
         final String off = "\u001B[40m";
         final String reset = "\u001B[0m";
