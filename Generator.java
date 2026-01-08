@@ -81,11 +81,11 @@ class Generator {
      * Draws the alignment squares onto the code
      */
     private void alignmentSquares() {
-        codeArray = UglyStuff.alignment(codeArray);
-        marked = UglyStuff.markedAlignment(marked);
-        if (version > 1) {
-            codeArray = UglyStuff.fourthSquare(codeArray, version);
-            marked = UglyStuff.markedFourthSquare(marked, version);
+        UglyStuff.alignment(codeArray); // technically these are position squares
+        UglyStuff.markedAlignment(marked);
+        if (version > 1) { // these are alignment squares. 
+            UglyStuff.fourthSquare(codeArray, version);
+            UglyStuff.markedFourthSquare(marked, version);
         }
     }
 
@@ -183,7 +183,7 @@ class Generator {
      *
      */
     private void formatString(int mask) {
-        codeArray = UglyStuff.drawFormatString(codeArray, mask);
+        UglyStuff.drawFormatString(codeArray, mask);
     }
 
     /**
@@ -192,14 +192,14 @@ class Generator {
      * @param code A QR Code to grade
      * @return The score as given by the criteria in the handbook
      */
-    private int score(boolean[][] code) {
+    private int score(boolean[][] code) { // it would appear something in here doesn't work
         int ret = 0;
 
         // Feature 1: strings of five or more same color
         int counterx = 1;
         int countery = 1;
         for (int row = 0; row < size; row++) {
-            for (int col = 1; col < size; col++) {
+            for (int col = 0; col < size; col++) {
                 if (col + 1 < size && code[row][col] == code[row][col + 1]) {
                     counterx++;
                 } else {
@@ -208,7 +208,7 @@ class Generator {
                     }
                     counterx = 1;
                 }
-                if (row + 1 < size && code[col][row] == code[col][row + 1]) {
+                if (col + 1 < size && code[col][row] == code[col + 1][row]) {
                     countery++;
                 } else {
                     if (countery >= 5) {
@@ -354,17 +354,17 @@ class Generator {
     private void mask() {
         boolean[][] untouched = new boolean[size][size];
         boolean[][] blankTestArray = new boolean[size][size];
-        untouched = UglyStuff.markedAlignment(untouched);
-        blankTestArray = UglyStuff.alignment(blankTestArray);
+        UglyStuff.markedAlignment(untouched);
+        UglyStuff.alignment(blankTestArray);
         if (version > 1) {
-            untouched = UglyStuff.markedFourthSquare(untouched, version);
-            blankTestArray = UglyStuff.fourthSquare(blankTestArray, version);
+            UglyStuff.markedFourthSquare(untouched, version);
+            UglyStuff.fourthSquare(blankTestArray, version);
         }
         int[] scores = new int[8];
 
         for (int pattern = 0; pattern < 8; pattern++) {
             boolean[][] arrayForScoring = maskArray(blankTestArray, pattern, untouched);
-            arrayForScoring = UglyStuff.drawFormatString(arrayForScoring, pattern);
+            UglyStuff.drawFormatString(arrayForScoring, pattern);
             scores[pattern] = score(arrayForScoring);
         }
         int lowestPattern = 0;

@@ -34,7 +34,7 @@ public class UglyStuff {
      * @param code Your QR Code 2D boolean array
      * @return Your updated 2D boolean array
      */
-    public static boolean[][] alignment(boolean[][] code) {
+    public static void alignment(boolean[][] code) {
         int size = code.length - 1;
 
         // outer squares
@@ -71,9 +71,9 @@ public class UglyStuff {
         // Extra dark square
         code[size - 7][8] = true;
 
-        return code;
     }
 
+    // TODO: rename the position squares and alignment squares and update this so it can be scaled to versions > 6
     /**
      * Draws the fourth alignment square in the bottom right corner
      *
@@ -81,7 +81,7 @@ public class UglyStuff {
      * @param version The version/size of your QR Code
      * @return Your updated 2D boolean array
      */
-    public static boolean[][] fourthSquare(boolean[][] code, int version) {
+    public static void fourthSquare(boolean[][] code, int version) {
         int start = 16 + (4 * (version - 2));
         for (int i = 0; i < 5; i++) {
             code[start + i][start] = true;
@@ -92,7 +92,6 @@ public class UglyStuff {
         }
         code[start + 2][start + 2] = true;
 
-        return code;
     }
 
     /**
@@ -103,15 +102,13 @@ public class UglyStuff {
      * @param version The version/size of your QR Code
      * @return Your updated marked array
      */
-    public static boolean[][] markedFourthSquare(boolean[][] marked, int version) {
+    public static void markedFourthSquare(boolean[][] marked, int version) {
         int start = 16 + (4 * (version - 2));
         for (int i = start; i < start + 5; i++) {
             for (int j = start; j < start + 5; j++) {
                 marked[i][j] = true;
             }
         }
-
-        return marked;
     }
 
     /**
@@ -123,7 +120,7 @@ public class UglyStuff {
      * @param version The version/size of your QR Code
      * @return Your updated marked array
      */
-    public static boolean[][] markedAlignment(boolean[][] marked) {
+    public static void markedAlignment(boolean[][] marked) {
         int size = marked.length - 1;
         for (int i = 0; i <= 7; i++) {
             for (int j = 0; j <= 7; j++) {
@@ -148,7 +145,6 @@ public class UglyStuff {
             }
         }
 
-        return marked;
     }
 
     /**
@@ -188,7 +184,7 @@ public class UglyStuff {
      * @param mask The number of mask used as specified by the ISO IEC 18004
      * @return A Boolean array with the format string drawn on
      */
-    public static boolean[][] drawFormatString(boolean[][] code, int mask) {
+    public static void drawFormatString(boolean[][] code, int mask) {
         int size = code.length - 1;
         boolean[] formatString = bitStringToBoolArray(getFormatString(mask));
 
@@ -207,7 +203,6 @@ public class UglyStuff {
         code[8][size - 6] = formatString[8];
         code[8][size - 7] = formatString[7];
 
-        return code;
     }
 
     /**
