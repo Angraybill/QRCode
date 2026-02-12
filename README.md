@@ -1,5 +1,5 @@
 # QRCode
-Class to Generate a QR code in the command line from a given URL. Medium strength (15%) error correction. Works fairly well up to a version 6 QR Code, which allows for 106 input bytes. Anything more than 106 input bytes will terminate early.
+Class to Generate a QR code in the command line from a given URL. Medium strength (15%) error correction. Works fairly well up to a version 6 QR Code, which allows for 106 input bytes. Any input <= 106 characters will print the code; 107 <= input length <= 190 will only print the alignment squares, finder patterns, and timing strips; input length > 190 will terminate without printing.
 
 
 To use, download all files into a folder and cd into that folder

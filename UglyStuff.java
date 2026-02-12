@@ -32,9 +32,8 @@ public class UglyStuff {
      * as the Timing Strips
      *
      * @param code Your QR Code 2D boolean array
-     * @return Your updated 2D boolean array
      */
-    public static void alignment(boolean[][] code) {
+    protected static void finderPattern(boolean[][] code) {
         int size = code.length - 1;
 
         // outer squares
@@ -73,42 +72,52 @@ public class UglyStuff {
 
     }
 
-    // TODO: rename the position squares and alignment squares and update this so it can be scaled to versions > 6
     /**
      * Draws the fourth alignment square in the bottom right corner
      *
      * @param code Your QR Code 2D boolean array
      * @param version The version/size of your QR Code
-     * @return Your updated 2D boolean array
      */
-    public static void fourthSquare(boolean[][] code, int version) {
-        int start = 16 + (4 * (version - 2));
-        for (int i = 0; i < 5; i++) {
-            code[start + i][start] = true;
-            code[start][start + i] = true;
-            code[start + i][start + 4] = true;
-            code[start + 4][start + i] = true;
+    protected static void alignmentSquares(boolean[][] code, boolean[][] marked, int version) {
+        int[] indicies = getAlignmentIndicies(version);
+        // do all combination of each index in indicies except (1,1) (1,-1) (-1,1)
+        for (int i = 0; i < indicies.length; i++) {
+            for (int j = 0; j < indicies.length; j++) {
+                if ((i == 0 || i == indicies.length - 1) && (j == 0 || j == indicies.length - 1) && (i != indicies.length - 1 || j != indicies.length - 1)) {
+                    continue;
+                }
+                int y = indicies[i];
+                int x = indicies[j];
 
+                code[y][x] = true;
+
+                for (int k = -2; k <= 2; k++) {
+                    for (int l = -2; l <= 2; l++) {
+                        marked[y + k][x + l] = true;
+                        if (Math.abs(k) + Math.abs(l) < 2 || (Math.abs(k) == 1 && Math.abs(l) == 1)) {
+                            continue;
+                        }
+                        code[y + k][x + l] = true;
+
+                    }
+                }
+            }
         }
-        code[start + 2][start + 2] = true;
 
     }
 
-    /**
-     * Marks every square on the Marked array that would be affected by the
-     * bottom right alignmnet square
-     *
-     * @param marked Your marked array
-     * @param version The version/size of your QR Code
-     * @return Your updated marked array
-     */
-    public static void markedFourthSquare(boolean[][] marked, int version) {
-        int start = 16 + (4 * (version - 2));
-        for (int i = start; i < start + 5; i++) {
-            for (int j = start; j < start + 5; j++) {
-                marked[i][j] = true;
-            }
+    private static int[] getAlignmentIndicies(int version) {
+        if (version == 1) {
+            return new int[]{};
         }
+        if (version <= 6) {
+            return new int[]{6, 10 + (4 * version)};
+        }
+        if (version <= 13) { // Coming soon, maybe
+            return new int[]{6, 8 + (2 * version), 10 + (4 * version)};
+        }
+
+        return new int[]{};
     }
 
     /**
@@ -118,9 +127,8 @@ public class UglyStuff {
      *
      * @param marked Your marked array
      * @param version The version/size of your QR Code
-     * @return Your updated marked array
      */
-    public static void markedAlignment(boolean[][] marked) {
+    protected static void markedAlignment(boolean[][] marked) {
         int size = marked.length - 1;
         for (int i = 0; i <= 7; i++) {
             for (int j = 0; j <= 7; j++) {
@@ -155,7 +163,7 @@ public class UglyStuff {
      * @param length Length of your URL
      * @return The number of the version of QR Code you should use
      */
-    public static int getVersion(int length) {
+    protected static int getVersion(int length) {
         if (length <= 14) {
             return 1;
         }
@@ -174,6 +182,27 @@ public class UglyStuff {
         if (length <= 106) {
             return 6;
         }
+        if (length <= 122) {
+            return 7;
+        }
+        if (length <= 152) {
+            return 8;
+        }
+        if (length <= 180) {
+            return 9;
+        }
+        if (length <= 213) {
+            return 10;
+        }
+        if (length <= 251) {
+            return 11;
+        }
+        if (length <= 287) {
+            return 12;
+        }
+        if (length <= 331) {
+            return 13;
+        }
         return -1;
     }
 
@@ -182,9 +211,8 @@ public class UglyStuff {
      *
      * @param code Your QR Code array
      * @param mask The number of mask used as specified by the ISO IEC 18004
-     * @return A Boolean array with the format string drawn on
      */
-    public static void drawFormatString(boolean[][] code, int mask) {
+    protected static void drawFormatString(boolean[][] code, int mask) {
         int size = code.length - 1;
         boolean[] formatString = bitStringToBoolArray(getFormatString(mask));
 
@@ -225,7 +253,7 @@ public class UglyStuff {
      * @param version The version number of your QR Code
      * @return An empty boolean array of the correct size for your message
      */
-    public static boolean[][][] initializeBlocks(int version) {
+    protected static boolean[][][] initializeBlocks(int version) {
         return switch (version) {
             case (1) ->
                 new boolean[1][16][8];
@@ -251,7 +279,7 @@ public class UglyStuff {
      * @return An empty boolean array of the correct size for your error
      * corrections
      */
-    public static int[][] initializeRemainderBlocks(int version) {
+    protected static int[][] initializeRemainderBlocks(int version) {
         return switch (version) {
             case (1) ->
                 new int[1][10];
@@ -277,7 +305,7 @@ public class UglyStuff {
      * @param version The version number of your QR Code
      * @return The total number of bytes your message can hold
      */
-    public static int totBlockWords(int version) {
+    protected static int totBlockWords(int version) {
         boolean[][][] hold = initializeBlocks(version);
         return hold.length * hold[0].length;
     }
@@ -374,10 +402,10 @@ public class UglyStuff {
      * by r[0]*x^a + r[1]*x^(a-1) + r[2]*x^(a-2) + ... + r[-1]
      *
      * @param input Iterable list of booleans,
-     * @param version
-     * @return
+     * @param version QR Code version
+     * @return Result of the long division
      */
-    public static int[] longDivision(int[] input, int version) {
+    protected static int[] longDivision(int[] input, int version) {
         int[] divisor = divisors(version);
         int[] dividend = new int[input.length + divisor.length];
         System.arraycopy(input, 0, dividend, 0, input.length);
@@ -415,7 +443,7 @@ public class UglyStuff {
      * @param col The column index of the given bit
      * @return true if the bit should be flipped, false if not
      */
-    public static boolean maskPatternEval(int pattern, int row, int col) {
+    protected static boolean maskPatternEval(int pattern, int row, int col) {
         return switch (pattern) {
             case (0) ->
                 (row + col) % 2 == 0;

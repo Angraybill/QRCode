@@ -16,7 +16,7 @@ import java.util.*;
 
 class Generator {
 
-    private final String url;
+    private String url;
     private int length;
     private int size;
     private int version;
@@ -31,7 +31,7 @@ class Generator {
     private int offset;
     private boolean[][][] blocks;
 
-    private static final int MAXLENGTH = 106;
+    private static final int MAXLENGTH = 331; // 106
 
     public Generator(String url) {
         this.url = url;
@@ -61,6 +61,10 @@ class Generator {
         offset = 0; // avoid messing up the writing when you hit the vertial timing strip
         // Start Drawing things onto the square
         alignmentSquares();
+        if (version > 6) {
+            return;
+        }
+
         for (int row = 0; row < size; row++) {
             for (int col = 0; col < size; col++) {
                 if (marked[row][col]) {
@@ -74,19 +78,22 @@ class Generator {
         writeUrl();
         errorCorrection();
         mask();
-
     }
 
     /**
      * Draws the alignment squares onto the code
      */
     private void alignmentSquares() {
-        UglyStuff.alignment(codeArray); // technically these are position squares
+        UglyStuff.finderPattern(codeArray); // technically these are position squares
         UglyStuff.markedAlignment(marked);
         if (version > 1) { // these are alignment squares. 
-            UglyStuff.fourthSquare(codeArray, version);
-            UglyStuff.markedFourthSquare(marked, version);
+            UglyStuff.alignmentSquares(codeArray, marked, version);
+
         }
+    }
+
+    public void setUrl(String newUrl) {
+        url = newUrl;
     }
 
     /**
@@ -355,10 +362,9 @@ class Generator {
         boolean[][] untouched = new boolean[size][size];
         boolean[][] blankTestArray = new boolean[size][size];
         UglyStuff.markedAlignment(untouched);
-        UglyStuff.alignment(blankTestArray);
+        UglyStuff.finderPattern(blankTestArray);
         if (version > 1) {
-            UglyStuff.markedFourthSquare(untouched, version);
-            UglyStuff.fourthSquare(blankTestArray, version);
+            UglyStuff.alignmentSquares(blankTestArray, untouched, version);
         }
         int[] scores = new int[8];
 
@@ -532,7 +538,7 @@ class Generator {
      * @param toPrint Your boolean[][] representation of a Code
      * @return String representation of a QR Code
      */
-    private String printArray(boolean[][] toPrint) {
+    protected String printArray(boolean[][] toPrint) {
         final String on = "\u001B[47m";
         final String off = "\u001B[40m";
         final String reset = "\u001B[0m";
@@ -570,6 +576,10 @@ class Generator {
     public String toString() {
         if (!smallEnough) {
             return String.format("That URL is too long. This generator only supports URLs up to %d characters long", MAXLENGTH);
+        }
+        // TODO: Find a way to make a jpeg or something
+        if (version > 9) {
+            return "The QR Code is too large to fit on the screen.";
         }
         return printArray(codeArray);
     }
