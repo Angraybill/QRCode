@@ -31,10 +31,18 @@ class Generator {
     private int offset;
     private boolean[][][] blocks;
 
-    private static final int MAXLENGTH = 331; // 106
+    public static final int MAXLENGTH = 152;
+    public static final int MAXVERSION = 8;
 
     public Generator(String url) {
         this.url = url;
+    }
+
+    public Generator() {
+    }
+
+    public void setUrl(String newUrl) {
+        url = newUrl;
     }
 
     /**
@@ -61,8 +69,11 @@ class Generator {
         offset = 0; // avoid messing up the writing when you hit the vertial timing strip
         // Start Drawing things onto the square
         alignmentSquares();
-        if (version > 6) {
-            return;
+        if (version >= 7) {
+            UglyStuff.drawVersionInformation(codeArray, marked, version);
+            if (version > MAXVERSION) {
+                return;
+            }
         }
 
         for (int row = 0; row < size; row++) {
@@ -90,10 +101,6 @@ class Generator {
             UglyStuff.alignmentSquares(codeArray, marked, version);
 
         }
-    }
-
-    public void setUrl(String newUrl) {
-        url = newUrl;
     }
 
     /**
@@ -226,14 +233,16 @@ class Generator {
             }
 
         }
+
         // Feature 2: 2x2 squares
-        for (int row = 0; row < size - 2; row++) {
-            for (int col = 0; col < size - 2; col++) {
+        for (int row = 0; row < size - 1; row++) {
+            for (int col = 0; col < size - 1; col++) {
                 if (code[row][col] == code[row + 1][col] && code[row][col] == code[row][col + 1] && code[row][col] == code[row + 1][col + 1]) {
                     ret += 3;
                 }
             }
         }
+
         // feature 3: 1:1:3:1:1 (d:l:d:l:d) followed/proceeded by 4 light
         for (boolean[][] codeCheck : new boolean[][][]{code, rotate(code)}) {
             boolean lightBefore;
@@ -241,7 +250,7 @@ class Generator {
             int patternIndex;
             int constantMult = 1;
             int consecutiveEqual;
-            for (int row = 1; row < size; row++) {
+            for (int row = 0; row < size; row++) {
                 patternIndex = 0;
                 consecutiveEqual = 1;
                 lightBefore = false;
@@ -259,9 +268,11 @@ class Generator {
                             if (patternConsts[patternIndex] == constantMult * consecutiveEqual) {
                                 patternIndex++;
                                 if (patternIndex == 4) {
-                                    if (lightBefore || col + 4 < size && nextFourFalse(row, col, codeCheck)) {
-                                        ret += 40;
-                                    }
+                                    int scale = 0;
+                                    scale += lightBefore ? 1 : 0;
+                                    scale += col + 4 < size && nextFourFalse(row, col, codeCheck) ? 1 : 0;
+                                    ret += scale * 40;
+
                                     patternIndex = 0;
                                 }
                             } else {
@@ -282,16 +293,15 @@ class Generator {
         }
 
         // feature 4: Ratio of light to dark squares
-        int dark = 0;
+        double dark = 0;
         for (int row = 0; row < size; row++) {
             for (int col = 0; col < size; col++) {
                 dark += code[row][col] ? 1 : 0;
             }
         }
-        double benchmark = (size * size) / 2.0;
-        double ratio = dark / benchmark;
-        ret += (int) (ratio - 1.0) * 10;
-
+        int percentage = (int) ((dark / (size * size)) * 100);
+        percentage = Math.abs(percentage - 50);
+        ret += 10 * (percentage / 5);
         return ret;
     }
 
@@ -366,6 +376,10 @@ class Generator {
         if (version > 1) {
             UglyStuff.alignmentSquares(blankTestArray, untouched, version);
         }
+        if (version >= 7) {
+            UglyStuff.markVersionInformation(untouched);
+            UglyStuff.drawVersionInformation(blankTestArray, untouched, version);
+        }
         int[] scores = new int[8];
 
         for (int pattern = 0; pattern < 8; pattern++) {
@@ -373,6 +387,7 @@ class Generator {
             UglyStuff.drawFormatString(arrayForScoring, pattern);
             scores[pattern] = score(arrayForScoring);
         }
+
         int lowestPattern = 0;
         int lowestScore = Integer.MAX_VALUE;
 
@@ -404,11 +419,7 @@ class Generator {
      * Writes the URL into blocks as specified by the version
      */
     private void writeToBlocks() {
-        ArrayList<Boolean> allbits = new ArrayList<>();
-        allbits.add(false);
-        allbits.add(true);
-        allbits.add(false);
-        allbits.add(false);
+        ArrayList<Boolean> allbits = new ArrayList<>(Arrays.asList(false, true, false, false));
         for (boolean b : reverse(intToBoolArray(length))) {
             allbits.add(b);
         }
@@ -443,11 +454,14 @@ class Generator {
                 hold = new boolean[8];
                 holdIndex = 7;
             }
-            hold[holdIndex] = allbits.remove(0);
+            hold[holdIndex] = allbits.removeFirst();
             holdIndex--;
 
             if (numBlocksAdded == blockLength) {
                 blockNum++;
+                if (blockNum < blocks.length) {
+                    blockLength = blocks[blockNum].length;
+                }
                 numBlocksAdded = 0;
             }
 
@@ -462,8 +476,11 @@ class Generator {
     private void interleave(boolean[][][] toInterleave) {
         int tracer = 0;
 
-        for (int i = 0; i < toInterleave[0].length; i++) { // same number of loops as codewords per block
+        for (int i = 0; i < toInterleave[toInterleave.length - 1].length; i++) { // same number of loops as codewords per block
             for (boolean[][] block : toInterleave) { // loop through each block
+                if (i >= block.length) {
+                    continue;
+                }
                 urlBytes[tracer] = block[i];
                 tracer++;
             }
@@ -516,7 +533,7 @@ class Generator {
     private void errorCorrection() {
         int[][] remainders = UglyStuff.initializeRemainderBlocks(version);
         for (int i = 0; i < blocks.length; i++) {
-            int[] coefficients = new int[blocks[0].length];
+            int[] coefficients = new int[blocks[i].length];
             for (int j = 0; j < coefficients.length; j++) {
                 coefficients[j] = boolArrayToint(blocks[i][j]);
             }
@@ -527,11 +544,16 @@ class Generator {
 
     }
 
-    // \u001B[47m white 
+    // 
     // \u001B[0m reset
+    // \u001B[40m black
+    // \u001B[41m red
     // \u001B[42m green
     // \u001B[43m yellow
     // \u001B[44m blue
+    // \u001B[45m purple
+    // \u001B[46m cyan
+    // \u001B[47m white 
     /**
      * Turns a boolean[][] into a string that shows a QR code when printed
      *
@@ -578,6 +600,7 @@ class Generator {
             return String.format("That URL is too long. This generator only supports URLs up to %d characters long", MAXLENGTH);
         }
         // TODO: Find a way to make a jpeg or something
+        // https://stackoverflow.com/questions/2407113/open-source-image-processing-lib-in-java
         if (version > 9) {
             return "The QR Code is too large to fit on the screen.";
         }

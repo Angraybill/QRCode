@@ -28,7 +28,7 @@ public class UglyStuff {
     }
 
     /**
-     * Draws the top left, top right, and bottom left alignment squares, as well
+     * Draws the top left, top right, and bottom left finder patterns, as well
      * as the Timing Strips
      *
      * @param code Your QR Code 2D boolean array
@@ -73,7 +73,7 @@ public class UglyStuff {
     }
 
     /**
-     * Draws the fourth alignment square in the bottom right corner
+     * Draws the small alignment squares
      *
      * @param code Your QR Code 2D boolean array
      * @param version The version/size of your QR Code
@@ -206,6 +206,54 @@ public class UglyStuff {
         return -1;
     }
 
+    protected static void drawVersionInformation(boolean[][] code, boolean[][] marked, int version) {
+        int size = code.length - 1;
+        String versionString = getVersionInformationString(version);
+        boolean[] boolArray = bitStringToBoolArray(versionString);
+        int stringLength = versionString.length() - 1;
+
+        int trace = 0;
+        for (int j = 0; j < 6; j++) {
+            for (int i = 10; i > 7; i--) {
+                code[size - i][j] = boolArray[stringLength - trace];
+                code[j][size - i] = boolArray[stringLength - trace];
+                trace++;
+            }
+        }
+        markVersionInformation(marked);
+    }
+
+    protected static void markVersionInformation(boolean[][] marked) {
+        int size = marked.length - 1;
+        for (int j = 0; j < 6; j++) {
+            for (int i = 10; i > 7; i--) {
+                marked[size - i][j] = true;
+                marked[j][size - i] = true;
+            }
+        }
+    }
+
+    private static String getVersionInformationString(int version) {
+        return switch (version) {
+            case (7) ->
+                "000111110010010100";
+            case (8) ->
+                "001000010110111100";
+            case (9) ->
+                "001001101010011001";
+            case (10) ->
+                "001010010011010011";
+            case (11) ->
+                "001011101111110110";
+            case (12) ->
+                "001100011101100010";
+            case (13) ->
+                "001101100001000111";
+            default ->
+                "";
+        };
+    }
+
     /**
      * Draws the format string onto your QR Code array
      *
@@ -267,6 +315,10 @@ public class UglyStuff {
                 new boolean[2][43][8];
             case (6) ->
                 new boolean[4][27][8];
+            case (7) ->
+                new boolean[4][31][8];
+            case (8) ->
+                new boolean[][][]{new boolean[38][8], new boolean[38][8], new boolean[39][8], new boolean[39][8]};
             default ->
                 new boolean[1][1][1];
         };
@@ -293,6 +345,10 @@ public class UglyStuff {
                 new int[2][24];
             case (6) ->
                 new int[4][16];
+            case (7) ->
+                new int[4][18];
+            case (8) ->
+                new int[4][22];
             default ->
                 new int[1][1];
         };
@@ -307,7 +363,11 @@ public class UglyStuff {
      */
     protected static int totBlockWords(int version) {
         boolean[][][] hold = initializeBlocks(version);
-        return hold.length * hold[0].length;
+        int sum = 0;
+        for (boolean[][] b : hold) {
+            sum += b.length;
+        }
+        return sum;
     }
 
     /**
@@ -354,23 +414,24 @@ public class UglyStuff {
      * @param version The version number of your QR Code
      * @return An array of integers used as coefficients for the long division
      * to get the error correction byte. The resulting polynomial, given int[]
-     * r, and int a = r.length, is given by: r[0]*x^a + r[1]*x^a-1 + r[2]*x^a-2
-     * + ... + r[-1]
+     * r, and int a = r.length, is given by: r[0]*x^a + r[1]*x^(a-1) +
+     * r[2]*x^(a-2) + ... + r[-1]
      */
     private static int[] divisors(int version) {
         return switch (version) {
             case (1) ->
                 new int[]{0, 251, 67, 46, 61, 118, 70, 64, 94, 32, 45};
-            case (2) ->
+            case 2, 6 ->
                 new int[]{0, 120, 104, 107, 109, 102, 161, 76, 3, 91, 191, 147, 169, 182, 194, 225, 120};
             case (3) ->
                 new int[]{0, 173, 125, 158, 2, 103, 182, 118, 17, 145, 201, 111, 28, 165, 53, 161, 21, 245, 142, 13, 102, 48, 227, 153, 145, 218, 70};
-            case (4) ->
+            case 4, 7 ->
                 new int[]{0, 215, 234, 158, 94, 184, 97, 118, 170, 79, 187, 152, 148, 252, 179, 5, 98, 96, 153};
             case (5) ->
                 new int[]{0, 229, 121, 135, 48, 211, 117, 251, 126, 159, 180, 169, 152, 192, 226, 228, 218, 111, 0, 117, 232, 87, 96, 227, 21};
-            case (6) ->
-                new int[]{0, 120, 104, 107, 109, 102, 161, 76, 3, 91, 191, 147, 169, 182, 194, 225, 120};
+            case (8) ->
+                new int[]{0, 210, 171, 247, 242, 93, 230, 14, 109, 221, 53, 200, 74, 8, 172, 98, 80, 219, 134, 160, 105, 165, 231};
+
             default ->
                 new int[]{};
         };
