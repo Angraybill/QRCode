@@ -1,2 +1,11 @@
+# Compiled files
 *.class
+
+# Generated Files
 *.pdf
+*.png
+*.csv
+
+# System specific files
+.DS_Store
+.vscode

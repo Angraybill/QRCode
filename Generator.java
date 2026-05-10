@@ -8,10 +8,11 @@
  * https://www.youtube.com/watch?v=w5ebcowAJD8
  * https://docs.google.com/spreadsheets/d/1kjJSg-Fgdyz4vBqU8iEvL2JYPhMWcL73otAI9s4gj-k/edit?gid=1916601463#gid=1916601463
  * https://www.geeksforgeeks.org/how-to-print-colored-text-in-java-console/
- * ^ (I have used that source for so many projects. I owe geeksforgeeks my life)
  * https://github.com/yansikeim/QR-Code/blob/master/ISO%20IEC%2018004%202015%20Standard.pdf
  */
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 
 class Generator {
@@ -31,61 +32,89 @@ class Generator {
     private int offset;
     private boolean[][][] blocks;
 
-    public static final int MAXLENGTH = 152;
-    public static final int MAXVERSION = 8;
+    public static final int MAXLENGTH = 331;
+    public static final int MAXVERSION = 13;
 
+    private String on = "\u001B[47m";
+    private String off = "\u001B[40m";
+
+    /**
+     * Construct with a starting URL
+     *
+     * @param url The url you want to make a QR code of
+     */
     public Generator(String url) {
         this.url = url;
     }
 
+    /**
+     * Construct without a starting URL
+     */
     public Generator() {
     }
 
+    /**
+     * Change the URL. You must call create() again to update the code
+     * internally
+     *
+     * @param newUrl
+     */
     public void setUrl(String newUrl) {
-        url = newUrl;
+        this.url = newUrl;
+    }
+
+    /**
+     * Get a copy of the 2D boolean array representing your QR code
+     *
+     * @return 2D boolean array representing your QR code
+     */
+    public boolean[][] getCodeArray() {
+        return this.codeArray.clone();
     }
 
     /**
      * Main function that does everything needed to create a QR Code
      */
     public void create() {
-
-        length = url.length();
-        if (length > MAXLENGTH) {
-            smallEnough = false;
+        if (this.url == null) {
             return;
         }
-        smallEnough = true;
-        version = UglyStuff.getVersion(length);
-        blocks = UglyStuff.initializeBlocks(version);
-        urlBytes = new boolean[length][8];
-        size = 17 + (4 * version);
-        codeArray = new boolean[size][size]; // [y][x] starting in top left
-        marked = new boolean[size][size];
-        up = true;
-        lastRow = size - 1;
-        lastCol = size - 1;
-        numMarked = 0; // avoid double counting
-        offset = 0; // avoid messing up the writing when you hit the vertial timing strip
+        this.length = this.url.length();
+        if (length > MAXLENGTH) {
+            this.smallEnough = false;
+            return;
+        }
+        this.smallEnough = true;
+        this.version = UglyStuff.getVersion(this.length);
+        this.blocks = UglyStuff.initializeBlocks(this.version);
+        this.urlBytes = new boolean[this.length][8];
+        this.size = 17 + (4 * this.version);
+        this.codeArray = new boolean[this.size][this.size]; // [y][x] starting in top left
+        this.marked = new boolean[this.size][this.size];
+        this.up = true;
+        this.lastRow = this.size - 1;
+        this.lastCol = this.size - 1;
+        this.numMarked = 0; // avoid double counting
+        this.offset = 0; // avoid messing up the writing when you hit the vertial timing strip
         // Start Drawing things onto the square
         alignmentSquares();
-        if (version >= 7) {
-            UglyStuff.drawVersionInformation(codeArray, marked, version);
-            if (version > MAXVERSION) {
+        if (this.version >= 7) {
+            UglyStuff.drawVersionInformation(this.codeArray, this.marked, this.version);
+            if (this.version > MAXVERSION) {
                 return;
             }
         }
 
         for (int row = 0; row < size; row++) {
             for (int col = 0; col < size; col++) {
-                if (marked[row][col]) {
-                    numMarked++;
+                if (this.marked[row][col]) {
+                    this.numMarked++;
                 }
             }
         }
-        urlBytes = new boolean[UglyStuff.totBlockWords(version)][8];
+        this.urlBytes = new boolean[UglyStuff.totBlockWords(this.version)][8];
         writeToBlocks();
-        interleave(blocks);
+        interleave(this.blocks);
         writeUrl();
         errorCorrection();
         mask();
@@ -95,11 +124,10 @@ class Generator {
      * Draws the alignment squares onto the code
      */
     private void alignmentSquares() {
-        UglyStuff.finderPattern(codeArray); // technically these are position squares
-        UglyStuff.markedAlignment(marked);
-        if (version > 1) { // these are alignment squares. 
-            UglyStuff.alignmentSquares(codeArray, marked, version);
-
+        UglyStuff.finderPattern(this.codeArray); // technically these are position squares
+        UglyStuff.markedAlignment(this.marked);
+        if (this.version > 1) { // these are alignment squares. 
+            UglyStuff.alignmentSquares(this.codeArray, this.marked, this.version);
         }
     }
 
@@ -108,41 +136,9 @@ class Generator {
      * code
      */
     private void writeUrl() {
-        for (boolean[] input : urlBytes) {
+        for (boolean[] input : this.urlBytes) {
             writeNextByte(input);
         }
-    }
-
-    /**
-     * Converts an integer into a boolean[] byte
-     *
-     * @param input Integer to convert
-     * @return Byte representation
-     */
-    private boolean[] intToBoolArray(int input) {
-        boolean[] ret = new boolean[8];
-        for (int tracer = 7; tracer >= 0; tracer--) {
-            int check = (int) Math.pow(2, tracer);
-            if (input >= check) {
-                input -= check;
-                ret[tracer] = true;
-            }
-        }
-        return ret;
-    }
-
-    /**
-     * Turns a byte (representated by a boolean array) into an integer
-     *
-     * @param input Byte to convert
-     * @return Integer representation
-     */
-    private int boolArrayToint(boolean[] input) {
-        int ret = 0;
-        for (int i = 0; i < 8; i++) {
-            ret += input[i] ? (int) Math.pow(2, i) : 0;
-        }
-        return ret;
     }
 
     /**
@@ -150,28 +146,28 @@ class Generator {
      * etc
      */
     private void getNextSquare() {
-        while (marked[lastRow][lastCol]) {
-            if (lastCol == 6) {
-                offset = 1;
-                lastCol--;
+        while (this.marked[this.lastRow][this.lastCol]) {
+            if (this.lastCol == 6) {
+                this.offset = 1;
+                this.lastCol--;
             }
-            if (lastCol % 2 == 0 + offset) {
-                lastCol--;
+            if (this.lastCol % 2 == 0 + this.offset) {
+                this.lastCol--;
             } else {
-                lastCol++;
-                lastRow += up ? -1 : 1;
+                this.lastCol++;
+                this.lastRow += this.up ? -1 : 1;
             }
             // too far down
-            if (lastRow == size) {
-                lastRow--;
-                lastCol -= 2;
-                up = !up;
+            if (this.lastRow == this.size) {
+                this.lastRow--;
+                this.lastCol -= 2;
+                this.up = !this.up;
             }
             // too far up
-            if (lastRow <= -1) {
-                lastRow = 0;
-                lastCol -= 2;
-                up = !up;
+            if (this.lastRow <= -1) {
+                this.lastRow = 0;
+                this.lastCol -= 2;
+                this.up = !this.up;
             }
         }
     }
@@ -184,9 +180,9 @@ class Generator {
     private void writeNextByte(boolean[] input) {
         for (int i = input.length - 1; i >= 0; i--) {
             getNextSquare();
-            codeArray[lastRow][lastCol] = input[i];
-            marked[lastRow][lastCol] = true;
-            numMarked++;
+            this.codeArray[this.lastRow][this.lastCol] = input[i];
+            this.marked[this.lastRow][this.lastCol] = true;
+            this.numMarked++;
         }
     }
 
@@ -197,7 +193,7 @@ class Generator {
      *
      */
     private void formatString(int mask) {
-        UglyStuff.drawFormatString(codeArray, mask);
+        UglyStuff.drawFormatString(this.codeArray, mask);
     }
 
     /**
@@ -206,15 +202,15 @@ class Generator {
      * @param code A QR Code to grade
      * @return The score as given by the criteria in the handbook
      */
-    private int score(boolean[][] code) { // it would appear something in here doesn't work
+    private int score(boolean[][] code) {
         int ret = 0;
 
         // Feature 1: strings of five or more same color
         int counterx = 1;
         int countery = 1;
-        for (int row = 0; row < size; row++) {
-            for (int col = 0; col < size; col++) {
-                if (col + 1 < size && code[row][col] == code[row][col + 1]) {
+        for (int row = 0; row < this.size; row++) {
+            for (int col = 0; col < this.size; col++) {
+                if (col + 1 < this.size && code[row][col] == code[row][col + 1]) {
                     counterx++;
                 } else {
                     if (counterx >= 5) {
@@ -222,7 +218,7 @@ class Generator {
                     }
                     counterx = 1;
                 }
-                if (col + 1 < size && code[col][row] == code[col + 1][row]) {
+                if (col + 1 < this.size && code[col][row] == code[col + 1][row]) {
                     countery++;
                 } else {
                     if (countery >= 5) {
@@ -235,8 +231,8 @@ class Generator {
         }
 
         // Feature 2: 2x2 squares
-        for (int row = 0; row < size - 1; row++) {
-            for (int col = 0; col < size - 1; col++) {
+        for (int row = 0; row < this.size - 1; row++) {
+            for (int col = 0; col < this.size - 1; col++) {
                 if (code[row][col] == code[row + 1][col] && code[row][col] == code[row][col + 1] && code[row][col] == code[row + 1][col + 1]) {
                     ret += 3;
                 }
@@ -250,11 +246,11 @@ class Generator {
             int patternIndex;
             int constantMult = 1;
             int consecutiveEqual;
-            for (int row = 0; row < size; row++) {
+            for (int row = 0; row < this.size; row++) {
                 patternIndex = 0;
                 consecutiveEqual = 1;
                 lightBefore = false;
-                for (int col = 1; col < size; col++) {
+                for (int col = 1; col < this.size; col++) {
                     if (codeCheck[row][col] == codeCheck[row][col - 1]) {
                         consecutiveEqual++;
                     } else {
@@ -270,7 +266,7 @@ class Generator {
                                 if (patternIndex == 4) {
                                     int scale = 0;
                                     scale += lightBefore ? 1 : 0;
-                                    scale += col + 4 < size && nextFourFalse(row, col, codeCheck) ? 1 : 0;
+                                    scale += col + 4 < this.size && nextFourFalse(row, col, codeCheck) ? 1 : 0;
                                     ret += scale * 40;
 
                                     patternIndex = 0;
@@ -294,12 +290,12 @@ class Generator {
 
         // feature 4: Ratio of light to dark squares
         double dark = 0;
-        for (int row = 0; row < size; row++) {
-            for (int col = 0; col < size; col++) {
+        for (int row = 0; row < this.size; row++) {
+            for (int col = 0; col < this.size; col++) {
                 dark += code[row][col] ? 1 : 0;
             }
         }
-        int percentage = (int) ((dark / (size * size)) * 100);
+        int percentage = (int) ((dark / (this.size * this.size)) * 100);
         percentage = Math.abs(percentage - 50);
         ret += 10 * (percentage / 5);
         return ret;
@@ -309,10 +305,10 @@ class Generator {
      * Returns if the next four square are all light Must not give input such
      * that four additional squares would go out of bounds
      *
-     * @param row row index of the starting square
-     * @param col column index of the starting square
+     * @param row Row index of the starting square
+     * @param col Column index of the starting square
      * @param code QR Code as a 2D boolean array
-     * @return true if the next four squares are light. false if not
+     * @return True if the next four squares are light. false if not
      */
     private boolean nextFourFalse(int row, int col, boolean[][] code) {
         for (int i = 1; i <= 4; i++) {
@@ -321,22 +317,6 @@ class Generator {
             }
         }
         return true;
-    }
-
-    /**
-     * Rotates an array 90˚ Counter-Clockwise
-     *
-     * @param code
-     * @return
-     */
-    private boolean[][] rotate(boolean[][] code) {
-        boolean[][] ret = new boolean[code.length][code.length];
-        for (int i = 0; i < code.length; i++) {
-            for (int j = 0; j < code.length; j++) {
-                ret[i][j] = code[j][code.length - i - 1];
-            }
-        }
-        return ret;
     }
 
     /**
@@ -349,8 +329,8 @@ class Generator {
      * @return Array with the mask drawn on
      */
     private boolean[][] maskArray(boolean[][] array, int pattern, boolean[][] untouched) {
-        for (int row = 0; row < size; row++) {
-            for (int col = 0; col < size; col++) {
+        for (int row = 0; row < this.size; row++) {
+            for (int col = 0; col < this.size; col++) {
                 if (untouched[row][col]) {
                     continue;
                 }
@@ -369,16 +349,16 @@ class Generator {
      * and adds the format string
      */
     private void mask() {
-        boolean[][] untouched = new boolean[size][size];
-        boolean[][] blankTestArray = new boolean[size][size];
+        boolean[][] untouched = new boolean[this.size][this.size];
+        boolean[][] blankTestArray = new boolean[this.size][this.size];
         UglyStuff.markedAlignment(untouched);
         UglyStuff.finderPattern(blankTestArray);
-        if (version > 1) {
-            UglyStuff.alignmentSquares(blankTestArray, untouched, version);
+        if (this.version > 1) {
+            UglyStuff.alignmentSquares(blankTestArray, untouched, this.version);
         }
-        if (version >= 7) {
+        if (this.version >= 7) {
             UglyStuff.markVersionInformation(untouched);
-            UglyStuff.drawVersionInformation(blankTestArray, untouched, version);
+            UglyStuff.drawVersionInformation(blankTestArray, untouched, this.version);
         }
         int[] scores = new int[8];
 
@@ -397,35 +377,20 @@ class Generator {
                 lowestPattern = i;
             }
         }
-        codeArray = maskArray(codeArray, lowestPattern, untouched);
+        this.codeArray = maskArray(this.codeArray, lowestPattern, untouched);
         formatString(lowestPattern);
-    }
-
-    /**
-     * Reverses a boolean[]
-     *
-     * @param toReverse Input array
-     * @return Reversed array
-     */
-    private boolean[] reverse(boolean[] toReverse) {
-        boolean[] ret = new boolean[toReverse.length];
-        for (int i = 0; i < toReverse.length; i++) {
-            ret[i] = toReverse[toReverse.length - i - 1];
-        }
-        return ret;
     }
 
     /**
      * Writes the URL into blocks as specified by the version
      */
     private void writeToBlocks() {
-        ArrayList<Boolean> allbits = new ArrayList<>(Arrays.asList(false, true, false, false));
-        for (boolean b : reverse(intToBoolArray(length))) {
+        ArrayList<Boolean> allbits = new ArrayList<>(Arrays.asList(false, true, false, false)); // byte mode
+        for (boolean b : reverse(intToBoolArray(this.length))) {
             allbits.add(b);
         }
-
-        for (int c = 0; c < length; c++) {
-            int character = url.charAt(c);
+        for (int c = 0; c < this.length; c++) {
+            int character = this.url.charAt(c);
             boolean[] charBoolArray = reverse(intToBoolArray(character));
             for (boolean b : charBoolArray) {
                 allbits.add(b);
@@ -435,7 +400,7 @@ class Generator {
             allbits.add(false);
         }
         boolean parity = true;
-        while (allbits.size() <= 8 * UglyStuff.totBlockWords(version)) {
+        while (allbits.size() <= 8 * UglyStuff.totBlockWords(this.version)) {
             for (boolean b : reverse(intToBoolArray(parity ? 236 : 17))) {
                 allbits.add(b);
             }
@@ -449,7 +414,7 @@ class Generator {
         int holdIndex = 7;
         while (!allbits.isEmpty()) {
             if (holdIndex == -1) {
-                blocks[blockNum][numBlocksAdded] = hold;
+                this.blocks[blockNum][numBlocksAdded] = hold;
                 numBlocksAdded++;
                 hold = new boolean[8];
                 holdIndex = 7;
@@ -460,7 +425,7 @@ class Generator {
             if (numBlocksAdded == blockLength) {
                 blockNum++;
                 if (blockNum < blocks.length) {
-                    blockLength = blocks[blockNum].length;
+                    blockLength = this.blocks[blockNum].length;
                 }
                 numBlocksAdded = 0;
             }
@@ -475,13 +440,12 @@ class Generator {
      */
     private void interleave(boolean[][][] toInterleave) {
         int tracer = 0;
-
         for (int i = 0; i < toInterleave[toInterleave.length - 1].length; i++) { // same number of loops as codewords per block
             for (boolean[][] block : toInterleave) { // loop through each block
                 if (i >= block.length) {
                     continue;
                 }
-                urlBytes[tracer] = block[i];
+                this.urlBytes[tracer] = block[i];
                 tracer++;
             }
         }
@@ -522,7 +486,7 @@ class Generator {
             writeNextByte(booleanRepresentation);
         }
 
-        while (numMarked < Math.pow(size, 2)) {
+        while (numMarked < this.size * this.size) {
             writeNextByte(new boolean[]{false});
         }
     }
@@ -531,20 +495,18 @@ class Generator {
      * Adds calculates and writes the error correction bytes onto the code
      */
     private void errorCorrection() {
-        int[][] remainders = UglyStuff.initializeRemainderBlocks(version);
-        for (int i = 0; i < blocks.length; i++) {
-            int[] coefficients = new int[blocks[i].length];
+        int[][] remainders = UglyStuff.initializeRemainderBlocks(this.version);
+        for (int i = 0; i < this.blocks.length; i++) {
+            int[] coefficients = new int[this.blocks[i].length];
             for (int j = 0; j < coefficients.length; j++) {
-                coefficients[j] = boolArrayToint(blocks[i][j]);
+                coefficients[j] = boolArrayToint(this.blocks[i][j]);
             }
-            remainders[i] = UglyStuff.longDivision(coefficients, version);
+            remainders[i] = UglyStuff.longDivisionRemainders(coefficients, this.version);
         }
         int[] mergedRemainders = interleaveRemainders(remainders);
         writeErrorCorrection(mergedRemainders);
-
     }
 
-    // 
     // \u001B[0m reset
     // \u001B[40m black
     // \u001B[41m red
@@ -555,43 +517,126 @@ class Generator {
     // \u001B[46m cyan
     // \u001B[47m white 
     /**
+     * Change the color of either the on or off. Options are red, yellow, green,
+     * blue, cyan, purple, black, and white
+     *
+     * @param light True if you want the light color (typically white) to
+     * change. False if you want the dark color (typically black) to change
+     * @param color The color you want to change to
+     */
+    public void changeColor(boolean light, String color) {
+        if (color == null) {
+            return;
+        }
+        String colorCode = switch (color.toLowerCase()) {
+            case ("black") ->
+                "\u001B[40m";
+            case ("red") ->
+                "\u001B[41m";
+            case ("green") ->
+                "\u001B[42m";
+            case ("yellow") ->
+                "\u001B[43m";
+            case ("blue") ->
+                "\u001B[44m";
+            case ("purple") ->
+                "\u001B[45m";
+            case ("cyan") ->
+                "\u001B[46m";
+            case ("white") ->
+                "\u001B[47m";
+            default ->
+                null;
+        };
+        if (colorCode == null) {
+            return;
+        }
+        if (light) {
+            this.on = colorCode;
+        } else {
+            this.off = colorCode;
+        }
+    }
+
+    /**
      * Turns a boolean[][] into a string that shows a QR code when printed
      *
-     * @param toPrint Your boolean[][] representation of a Code
+     * @param toPrint Your boolean[][] representation of a QR Code
      * @return String representation of a QR Code
      */
     protected String printArray(boolean[][] toPrint) {
-        final String on = "\u001B[47m";
-        final String off = "\u001B[40m";
-        final String reset = "\u001B[0m";
-        String ret = "";
-        String blank = on + "  " + reset;
+        return Output.printArray(toPrint, this.marked, on, off);
+    }
 
-        for (int i = 0; i < toPrint.length + 2; i++) {
-            ret += blank;
-        }
-        ret += "\n";
-
-        int rowIndex = 0;
-        for (boolean[] row : toPrint) {
-            ret += blank;
-            int colIndex = 0;
-            for (boolean square : row) {
-                String color = "";
-                if (marked[rowIndex][colIndex]) {
-                    color = square ? off : on;
-                }
-                ret += color + "  " + reset;
-                colIndex++;
+    // Static Methods:
+    /**
+     * Rotates an array 90˚ Counter-Clockwise
+     *
+     * @param code
+     * @return
+     */
+    public static boolean[][] rotate(boolean[][] code) {
+        boolean[][] ret = new boolean[code[0].length][code.length];
+        for (int i = 0; i < code.length; i++) {
+            for (int j = 0; j < code[0].length; j++) {
+                ret[i][j] = code[j][code.length - i - 1];
             }
-            ret += blank + "\n";
-            rowIndex++;
-        }
-        for (int i = 0; i < toPrint.length + 2; i++) {
-            ret += blank;
         }
         return ret;
+    }
 
+    /**
+     * Reverses a boolean[]
+     *
+     * @param toReverse Input array
+     * @return Reversed array
+     */
+    public static boolean[] reverse(boolean[] toReverse) {
+        boolean[] ret = new boolean[toReverse.length];
+        for (int i = 0; i < toReverse.length; i++) {
+            ret[i] = toReverse[toReverse.length - i - 1];
+        }
+        return ret;
+    }
+
+    /**
+     * Turns a byte (representated by a boolean array) into an integer
+     *
+     * @param input Byte to convert
+     * @return Integer representation
+     */
+    public static int boolArrayToint(boolean[] input) {
+        int ret = 0;
+        for (int i = 0; i < 8; i++) {
+            ret += input[i] ? (int) Math.pow(2, i) : 0;
+        }
+        return ret;
+    }
+
+    /**
+     * Converts an integer into a boolean[] byte
+     *
+     * @param input Integer to convert
+     * @return Byte representation
+     */
+    public static boolean[] intToBoolArray(int input) {
+        boolean[] ret;
+        int start;
+        if (input > 255) {
+            ret = new boolean[16];
+            start = 15;
+        } else {
+            ret = new boolean[8];
+            start = 7;
+        }
+        for (int tracer = start; tracer >= 0; tracer--) {
+            int check = (int) Math.pow(2, tracer);
+            if (input >= check) {
+                input -= check;
+                ret[tracer] = true;
+            }
+        }
+        return ret;
     }
 
     @Override
@@ -599,20 +644,42 @@ class Generator {
         if (!smallEnough) {
             return String.format("That URL is too long. This generator only supports URLs up to %d characters long", MAXLENGTH);
         }
-        // TODO: Find a way to make a jpeg or something
-        // https://stackoverflow.com/questions/2407113/open-source-image-processing-lib-in-java
-        if (version > 9) {
-            return "The QR Code is too large to fit on the screen.";
-        }
-        return printArray(codeArray);
+        return printArray(this.codeArray);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
+        String inputUrl;
         try (Scanner s = new Scanner(System.in)) {
-            System.out.print("Enter your URL: ");
-            Generator g = new Generator(s.nextLine());
+            if (args.length > 0) {
+                inputUrl = args[0];
+            } else {
+                System.out.print("Enter your URL: ");
+                inputUrl = s.nextLine();
+
+            }
+
+            Generator g = new Generator(inputUrl);
             g.create();
-            System.out.println(g);
+
+            if (args.length <= 1 || args[1].equalsIgnoreCase("print")) {
+                System.out.println(g);
+            } else {
+                boolean givenFileName = args.length >= 3;
+                String fileName;
+                if (givenFileName) {
+                    fileName = args[2];
+                } else {
+                    System.out.print("Enter a filename: ");
+                    fileName = s.nextLine();
+                }
+                if (args[1].equalsIgnoreCase("csv")) {
+                    Output.convertToCSV(g.getCodeArray(), Path.of(""), fileName);
+                } else if (args[1].equalsIgnoreCase("png")) {
+                    Output.convertToPNG(g.getCodeArray(), Path.of(""), fileName);
+                } else {
+                    System.out.println("Unknown output instruction");
+                }
+            }
         }
     }
 }

@@ -1,28 +1,7 @@
 
-import java.io.*;
 import java.util.*;
 
 public class UglyStuff {
-
-    private static final HashMap<Integer, Integer> expToInt;
-    private static final HashMap<Integer, Integer> intToExp;
-
-    static {
-        expToInt = new HashMap<>();
-        intToExp = new HashMap<>();
-
-        try (Scanner s = new Scanner(new File("gf255table.csv"))) {
-            while (s.hasNext()) {
-                String[] line = s.nextLine().split(",");
-                expToInt.put(Integer.valueOf(line[0]), Integer.valueOf(line[1]));
-                if (line.length > 2) {
-                    intToExp.put(Integer.valueOf(line[2]), Integer.valueOf(line[3]));
-                }
-            }
-        } catch (FileNotFoundException e) {
-            System.out.println(e);
-        }
-    }
 
     private UglyStuff() {
     }
@@ -80,9 +59,10 @@ public class UglyStuff {
      */
     protected static void alignmentSquares(boolean[][] code, boolean[][] marked, int version) {
         int[] indicies = getAlignmentIndicies(version);
-        // do all combination of each index in indicies except (1,1) (1,-1) (-1,1)
+        // do all combination of each index in indicies except (0,0) (0,-1) (-1,0)
         for (int i = 0; i < indicies.length; i++) {
             for (int j = 0; j < indicies.length; j++) {
+                // Skip all corners but bottom right
                 if ((i == 0 || i == indicies.length - 1) && (j == 0 || j == indicies.length - 1) && (i != indicies.length - 1 || j != indicies.length - 1)) {
                     continue;
                 }
@@ -106,6 +86,14 @@ public class UglyStuff {
 
     }
 
+    /**
+     * Get the indicies of the alignment (smaller) squares
+     *
+     * @param version The version number of your QR Code
+     * @return An integer array of the indicies. A square should be drawn at
+     * each permutation of two numbers except the bottom left, top left, and top
+     * right
+     */
     private static int[] getAlignmentIndicies(int version) {
         if (version == 1) {
             return new int[]{};
@@ -113,7 +101,7 @@ public class UglyStuff {
         if (version <= 6) {
             return new int[]{6, 10 + (4 * version)};
         }
-        if (version <= 13) { // Coming soon, maybe
+        if (version <= 13) {
             return new int[]{6, 8 + (2 * version), 10 + (4 * version)};
         }
 
@@ -206,6 +194,15 @@ public class UglyStuff {
         return -1;
     }
 
+    /**
+     * Draw the version number in the bottom left and top right of a code
+     * version >= 7
+     *
+     * @param code The 2D boolean array representing your QR Code
+     * @param marked The 2D boolean array representing squares that have been
+     * drawn to
+     * @param version The version number of your QR Code
+     */
     protected static void drawVersionInformation(boolean[][] code, boolean[][] marked, int version) {
         int size = code.length - 1;
         String versionString = getVersionInformationString(version);
@@ -223,6 +220,12 @@ public class UglyStuff {
         markVersionInformation(marked);
     }
 
+    /**
+     * Note all squares in the QR Code that have been drawn to already
+     *
+     * @param marked The 2D boolean array representing squares that have been
+     * drawn to
+     */
     protected static void markVersionInformation(boolean[][] marked) {
         int size = marked.length - 1;
         for (int j = 0; j < 6; j++) {
@@ -233,6 +236,13 @@ public class UglyStuff {
         }
     }
 
+    /**
+     * Get the String representing the version number that goes in the top left
+     * and bottom right of a QR Code version >= 78
+     *
+     * @param version The version number of your QR Code
+     * @return The string to draw
+     */
     private static String getVersionInformationString(int version) {
         return switch (version) {
             case (7) ->
@@ -319,6 +329,18 @@ public class UglyStuff {
                 new boolean[4][31][8];
             case (8) ->
                 new boolean[][][]{new boolean[38][8], new boolean[38][8], new boolean[39][8], new boolean[39][8]};
+            case (9) ->
+                new boolean[][][]{new boolean[36][8], new boolean[36][8], new boolean[36][8], new boolean[37][8], new boolean[37][8]};
+            case (10) ->
+                new boolean[][][]{new boolean[43][8], new boolean[43][8], new boolean[43][8], new boolean[43][8], new boolean[44][8]};
+            case (11) ->
+                new boolean[][][]{new boolean[50][8], new boolean[51][8], new boolean[51][8], new boolean[51][8], new boolean[51][8]};
+            case (12) ->
+                new boolean[][][]{new boolean[36][8], new boolean[36][8], new boolean[36][8], new boolean[36][8],
+                    new boolean[36][8], new boolean[36][8], new boolean[37][8], new boolean[37][8]};
+            case (13) ->
+                new boolean[][][]{new boolean[37][8], new boolean[37][8], new boolean[37][8], new boolean[37][8],
+                    new boolean[37][8], new boolean[37][8], new boolean[37][8], new boolean[37][8], new boolean[38][8]};
             default ->
                 new boolean[1][1][1];
         };
@@ -349,6 +371,16 @@ public class UglyStuff {
                 new int[4][18];
             case (8) ->
                 new int[4][22];
+            case (9) ->
+                new int[5][22];
+            case (10) ->
+                new int[5][26];
+            case (11) ->
+                new int[5][30];
+            case (12) ->
+                new int[8][22];
+            case (13) ->
+                new int[9][22];
             default ->
                 new int[1][1];
         };
@@ -419,19 +451,20 @@ public class UglyStuff {
      */
     private static int[] divisors(int version) {
         return switch (version) {
-            case (1) ->
+            case (1) -> // 10
                 new int[]{0, 251, 67, 46, 61, 118, 70, 64, 94, 32, 45};
-            case 2, 6 ->
+            case 2, 6 -> // 16
                 new int[]{0, 120, 104, 107, 109, 102, 161, 76, 3, 91, 191, 147, 169, 182, 194, 225, 120};
-            case (3) ->
+            case 3, 10 -> // 26
                 new int[]{0, 173, 125, 158, 2, 103, 182, 118, 17, 145, 201, 111, 28, 165, 53, 161, 21, 245, 142, 13, 102, 48, 227, 153, 145, 218, 70};
-            case 4, 7 ->
+            case 4, 7 -> // 18
                 new int[]{0, 215, 234, 158, 94, 184, 97, 118, 170, 79, 187, 152, 148, 252, 179, 5, 98, 96, 153};
-            case (5) ->
+            case (5) -> // 24
                 new int[]{0, 229, 121, 135, 48, 211, 117, 251, 126, 159, 180, 169, 152, 192, 226, 228, 218, 111, 0, 117, 232, 87, 96, 227, 21};
-            case (8) ->
+            case 8, 9, 12, 13 -> // 22
                 new int[]{0, 210, 171, 247, 242, 93, 230, 14, 109, 221, 53, 200, 74, 8, 172, 98, 80, 219, 134, 160, 105, 165, 231};
-
+            case (11) -> // 30
+                new int[]{0, 41, 173, 145, 152, 216, 31, 179, 182, 50, 48, 110, 86, 239, 96, 222, 125, 42, 173, 226, 193, 224, 130, 156, 37, 251, 216, 238, 40, 192, 180};
             default ->
                 new int[]{};
         };
@@ -457,42 +490,72 @@ public class UglyStuff {
     }
 
     /**
-     * Returns an array of coefficients to a polynomial resulting from dividing
-     * a given array of polynomial coefficients by a polynomial as given by the
-     * ISO IEC 18004. Polynomials, given int[] r and int a = r.length, are given
-     * by r[0]*x^a + r[1]*x^(a-1) + r[2]*x^(a-2) + ... + r[-1]
+     * Returns an array of coefficients to a remainder polynomial resulting from
+     * dividing a given array of polynomial coefficients by a polynomial as
+     * given by the ISO IEC 18004. Polynomials, given int[] r and int a =
+     * r.length, are given by α^r[0]*x^a + α^r[1]*x^(a-1) + α^r[2]*x^(a-2) + ...
+     * + α^r[-1] where α^n is the primative element 2 under GF(2^8)
      *
-     * @param input Iterable list of booleans,
+     * @param dividend Dividend of the polynomial division expression
      * @param version QR Code version
-     * @return Result of the long division
+     * @return Remainders as a result of polynomial long division
      */
-    protected static int[] longDivision(int[] input, int version) {
-        int[] divisor = divisors(version);
-        int[] dividend = new int[input.length + divisor.length];
-        System.arraycopy(input, 0, dividend, 0, input.length);
+    protected static int[] longDivisionRemainders(int[] dividend, int version) {
+        return longDivisionRemainders(dividend, divisors(version));
+    }
+
+    /**
+     * Returns an array of coefficeints to a remainder polynomial resulting from
+     * dividing the given dividendend and divisor coefficient arrays.
+     * Polynomials, given int[] r and int a = r.length, are given by α^r[0]*x^a
+     * + α^r[1]*x^(a-1) + α^r[2]*x^(a-2) + ... + α^r[-1] where α^n is the
+     * primative element 2 under GF(2^8)
+     *
+     * @param dividend Dividend of the polynomial division expression
+     * @param divisor Divisor of the polynomial division expression
+     * @return Remainders as a result of polynomial long division
+     */
+    public static int[] longDivisionRemainders(int[] dividend, int[] divisor) {
+        // Preparing the gff log/antilog value
+        HashMap<Integer, Integer> expToInt = new HashMap<>();
+        HashMap<Integer, Integer> intToExp = new HashMap<>();
+
+        expToInt.put(0, 1);
+        int val = 1;
+        for (int trace = 0; trace <= 255; trace++) {
+            val *= 2;
+            if (val >= 255) {
+                val ^= 285;
+            }
+            expToInt.put(trace, val);
+            intToExp.put(val, trace);
+        }
+
+        int[] extendedDividend = new int[dividend.length + divisor.length];
+        System.arraycopy(dividend, 0, extendedDividend, 0, dividend.length);
         int term = 0; // tracks which term we're looking at
-        while (goodNumbers(dividend) > divisor.length) {
-            if (dividend[term] == 0) {
+        while (goodNumbers(extendedDividend) > divisor.length) {
+            if (extendedDividend[term] == 0) {
                 term++;
                 continue;
             }
-            int leadExp = intToExp.get(dividend[term]);
+            int leadExp = intToExp.get(extendedDividend[term]);
             int[] alteredGenPolynomial = new int[divisor.length];
             for (int i = 0; i < divisor.length; i++) {
                 alteredGenPolynomial[i] = expToInt.get((divisor[i] + leadExp) % 255);
             }
             for (int i = term; i < term + divisor.length; i++) {
-                dividend[i] ^= alteredGenPolynomial[i - term];
+                extendedDividend[i] ^= alteredGenPolynomial[i - term];
             }
             term++;
         }
 
-        int[] ret = new int[divisor.length - 1];
-        for (int i = term; i < dividend.length - 1; i++) {
-            ret[i - term] = dividend[i];
+        int[] remainder = new int[divisor.length - 1];
+        for (int i = term; i < extendedDividend.length - 1; i++) {
+            remainder[i - term] = extendedDividend[i];
         }
 
-        return ret;
+        return remainder;
     }
 
     /**
@@ -502,7 +565,7 @@ public class UglyStuff {
      * @param pattern The number of your mask pattern (0-7)
      * @param row The row index of the given bit
      * @param col The column index of the given bit
-     * @return true if the bit should be flipped, false if not
+     * @return True if the bit should be flipped, false if not
      */
     protected static boolean maskPatternEval(int pattern, int row, int col) {
         return switch (pattern) {
@@ -526,5 +589,4 @@ public class UglyStuff {
                 false;
         };
     }
-
 }
